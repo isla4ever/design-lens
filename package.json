@@ -1,0 +1,43 @@
+{
+  "name": "design-lens-extension",
+  "version": "0.1.0",
+  "description": "A browser extension that captures design references, interaction patterns, and motion cues from live websites.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "compile": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.mjs",
+    "check": "npm run compile && npm run test && npm run build"
+  },
+  "keywords": [
+    "browser-extension",
+    "design-system",
+    "css-inspector",
+    "wxt",
+    "frontend"
+  ],
+  "author": "Isla",
+  "license": "MIT",
+  "dependencies": {
+    "@wxt-dev/module-react": "^1.2.2",
+    "lucide-react": "^1.21.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "wxt": "^0.20.27"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.11",
+    "@types/react": "^19.2.9",
+    "@types/react-dom": "^19.2.3",
+    "playwright": "^1.61.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
