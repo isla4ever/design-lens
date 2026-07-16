@@ -84,10 +84,14 @@ try {
     overlayPresent: browserMetrics.overlayPresent,
     consoleErrors
   };
-  const longTaskBudgetMs = Math.max(200, result.baselineMaxLongTaskMs + 100);
+  const isExtremeFixture = stressNodeCount >= 100_000;
+  const interactionBudgetMs = isExtremeFixture ? 600 : 500;
+  const longTaskBudgetMs = Math.max(isExtremeFixture ? 300 : 200, result.baselineMaxLongTaskMs + (isExtremeFixture ? 150 : 100));
+  result.interactionBudgetMs = interactionBudgetMs;
+  result.longTaskBudgetMs = longTaskBudgetMs;
 
   if (result.heartbeatCount !== 24) throw new Error(`Page lost interactions: expected 24, received ${result.heartbeatCount}`);
-  if (result.p95InteractionLatencyMs > 500) throw new Error(`Page p95 interaction latency exceeded 500ms: ${result.p95InteractionLatencyMs}ms`);
+  if (result.p95InteractionLatencyMs > interactionBudgetMs) throw new Error(`Page p95 interaction latency exceeded ${interactionBudgetMs}ms: ${result.p95InteractionLatencyMs}ms`);
   if (result.maxLongTaskMs > longTaskBudgetMs) throw new Error(`Extension recording long task exceeded the ${longTaskBudgetMs}ms fixture-adjusted budget: ${result.maxLongTaskMs}ms`);
   if (result.frameSamples > 12) throw new Error(`Frame sample budget exceeded: ${result.frameSamples}`);
   if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);

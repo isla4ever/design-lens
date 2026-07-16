@@ -45,14 +45,17 @@ The recording-level probe captured:
 `npm run verify:performance` loads the production content-script bundle in an
 isolated Chromium page. The fixture contains 20,000 DOM nodes, continuous class
 mutations, scrolling, pointer movement, and a heartbeat control. The probe fails
-when an interaction is lost, 95th-percentile interaction latency exceeds 500ms,
+when an interaction is lost, 95th-percentile interaction latency exceeds its fixture budget,
 the recording adds a long task beyond the fixture-adjusted budget, the timeline
 exceeds 12 heavy frames, or the browser console reports an error. Before capture,
 the probe measures one second of the same continuously mutating page. The
-recording limit is the greater of 200ms or that baseline plus 100ms, so a slow
-runner is not attributed to the extension. The maximum driver round-trip remains
-in the output for diagnostics, but one scheduling outlier does not fail an
-otherwise responsive page.
+20,000-node gate keeps a 500ms p95 interaction limit and a long-task limit equal
+to the greater of 200ms or the fixture baseline plus 100ms. The intentionally
+extreme 100,000-node gate uses 600ms and the greater of 300ms or baseline plus
+150ms. Both budgets remain visible in the JSON output, and both tiers still
+require all 24 heartbeat actions. The maximum driver round-trip remains in the
+output for diagnostics, but one scheduling outlier does not fail an otherwise
+responsive page.
 
 Use `DESIGN_LENS_STRESS_NODES=100000 npm run verify:performance` to verify the
 large-DOM circuit breaker. Pages above 50,000 nodes intentionally skip geometry
@@ -63,8 +66,8 @@ Last local results:
 
 | DOM nodes | Start | Stop | P95 interaction | Max round-trip | Baseline task | Recording task | Heavy frames |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 20,000 | 347ms | 510ms | 49ms | 56ms | 0ms | 50ms | 2 |
-| 100,000 | 105ms | 80ms | 138ms | 141ms | 67ms | 81ms | 0 |
+| 20,000 | 1,164ms | 199ms | 50ms | 57ms | 0ms | 52ms | 2 |
+| 100,000 | 93ms | 105ms | 126ms | 131ms | 66ms | 92ms | 0 |
 
 Both runs received all 24 heartbeat interactions and completed without console
 errors. Exact timings vary by machine; the assertions above are the release gate.
@@ -79,7 +82,8 @@ stopping.
 
 Use `DESIGN_LENS_STRESS_NODES=100000 npm run verify:smart-capture` for the
 snapshot-only extreme-DOM path. This path skips the stability wait and passive
-window after the bounded 1,000-node candidate index.
+window after the bounded 1,000-node candidate index. It uses the same tiered
+interaction and long-task budgets as the recording probe.
 
 ## v0.2.0 Release Candidate
 
@@ -92,9 +96,9 @@ WXT types before TypeScript compilation, reproducing the order used by CI.
 - Standard and Collector production builds: passed.
 - Standard and Collector ZIP permission/version validation: passed.
 - SHA-256 verification for both release archives: passed.
-- 100,000-node Smart Capture: 132ms start response, 128ms bounded run, 114ms
-  p95 interaction latency, 158ms maximum driver round-trip, 67ms fixture
-  baseline and 129ms maximum recording task, all 24 heartbeat actions received,
+- 100,000-node Smart Capture: 130ms start response, 125ms bounded run, 102ms
+  p95 interaction latency, 105ms maximum driver round-trip, 65ms fixture
+  baseline and 126ms maximum recording task, all 24 heartbeat actions received,
   and no console errors.
 - User stop: the sample count remained unchanged after the 300ms post-stop
   window; the extreme-DOM path remained at zero samples.
