@@ -177,12 +177,18 @@ export function buildOverlayMarkup(theme: ThemeMode, content: string, variant: O
         font-weight: 950;
         line-height: 1.2;
         margin-bottom: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .capture-head span {
         color: ${theme === "light" ? "#59655d" : "#b9c5bd"};
         display: block;
         font-size: 11px;
         line-height: 1.42;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .capture-metrics,
       .capture-cues {
@@ -199,8 +205,10 @@ export function buildOverlayMarkup(theme: ThemeMode, content: string, variant: O
         font-weight: 800;
         line-height: 1;
         max-width: 100%;
-        overflow-wrap: anywhere;
+        overflow: hidden;
         padding: 6px 8px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .capture-cues span {
         background: ${theme === "light" ? "rgba(122,160,22,.11)" : "rgba(215,255,103,.1)"};
@@ -242,6 +250,10 @@ export function buildOverlayMarkup(theme: ThemeMode, content: string, variant: O
         button {
           grid-column: 1 / -1;
           width: 100%;
+        }
+        .panel.is-capture button.icon-close {
+          grid-column: auto;
+          width: 26px;
         }
       }
     </style>

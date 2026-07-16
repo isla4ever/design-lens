@@ -1,4 +1,5 @@
 import React from "react";
+import { ChevronDown, Code2, Workflow } from "lucide-react";
 import type { RebuildRouteProject } from "../../src/capture-v2/core/rebuild-route-project";
 import type { Locale } from "../../src/shared/i18n";
 import type { DesignCapture } from "../../src/shared/schema";
@@ -32,26 +33,29 @@ export function WorkspaceCoverage({ capture, locale, isBusy, routeProject, recor
         <div className="section-heading"><div><span>{zh ? "证据" : "Evidence"}</span><h2 id="coverage-title">{zh ? "覆盖状态" : "Coverage status"}</h2></div></div>
         {isRebuild ? <RebuildCoverage capture={capture} locale={locale} /> : <EvidenceHealth capture={capture} locale={locale} />}
       </section>
-      <section className="workspace-section" aria-labelledby="implementation-title">
-        <div className="section-heading"><div><span>{zh ? "实现" : "Implementation"}</span><h2 id="implementation-title">{zh ? "技术线索" : "Technical signals"}</h2></div></div>
-        <dl className="technical-signals">
-          <Signal label={zh ? "框架" : "Frameworks"} values={capture.implementationTrace?.frameworkSignals ?? []} />
-          <Signal label={zh ? "库" : "Libraries"} values={capture.implementationTrace?.librarySignals ?? []} />
-          <Signal label={zh ? "事件模型" : "Event model"} values={capture.implementationTrace?.eventModelHints ?? []} />
-          <Signal label={zh ? "样式运行时" : "Style runtime"} values={capture.implementationTrace?.styleRuntimeHints ?? []} />
-        </dl>
-      </section>
-      {isRebuild ? (
-        <section className="workspace-section recorder-workspace" aria-label={zh ? "Recorder 流程导入" : "Recorder flow import"}>
-          <WorkspaceRecorderImport flow={recorderFlow} match={recorderFlowMatch} locale={locale} disabled={isBusy || !canEditCurrentRoute} onImport={onImportRecorderFlow} onClear={onClearRecorderFlow} />
-        </section>
-      ) : null}
-      {isRebuild ? (
-        <section className="workspace-section route-workspace" aria-labelledby="route-workspace-title">
-          <h2 className="sr-only" id="route-workspace-title">{zh ? "网站路由项目" : "Site route project"}</h2>
-          <RebuildRouteProjectPanel capture={capture} project={routeProject} locale={locale} disabled={isBusy || !canEditCurrentRoute} onAdd={onAddRoute} onRemove={onRemoveRoute} onExport={onExportRouteProject} onStartNew={onStartNewRouteProject} />
-        </section>
-      ) : null}
+      <div className="coverage-secondary">
+        <details className="workspace-disclosure workspace-section">
+          <summary><Code2 aria-hidden="true" /><span>{zh ? "技术线索" : "Technical signals"}</span><ChevronDown className="disclosure-chevron" aria-hidden="true" /></summary>
+          <dl className="technical-signals">
+            <Signal label={zh ? "框架" : "Frameworks"} values={capture.implementationTrace?.frameworkSignals ?? []} />
+            <Signal label={zh ? "库" : "Libraries"} values={capture.implementationTrace?.librarySignals ?? []} />
+            <Signal label={zh ? "事件模型" : "Event model"} values={capture.implementationTrace?.eventModelHints ?? []} />
+            <Signal label={zh ? "样式运行时" : "Style runtime"} values={capture.implementationTrace?.styleRuntimeHints ?? []} />
+          </dl>
+        </details>
+        {isRebuild ? (
+          <details className="workspace-disclosure workspace-section recorder-workspace">
+            <summary><Workflow aria-hidden="true" /><span>{zh ? "Recorder 流程" : "Recorder flow"}{recorderFlow ? <small>{recorderFlow.scenes.length}</small> : null}</span><ChevronDown className="disclosure-chevron" aria-hidden="true" /></summary>
+            <WorkspaceRecorderImport flow={recorderFlow} match={recorderFlowMatch} locale={locale} disabled={isBusy || !canEditCurrentRoute} onImport={onImportRecorderFlow} onClear={onClearRecorderFlow} />
+          </details>
+        ) : null}
+        {isRebuild ? (
+          <section className="workspace-section route-workspace" aria-labelledby="route-workspace-title">
+            <h2 className="sr-only" id="route-workspace-title">{zh ? "网站路由项目" : "Site route project"}</h2>
+            <RebuildRouteProjectPanel capture={capture} project={routeProject} locale={locale} disabled={isBusy || !canEditCurrentRoute} onAdd={onAddRoute} onRemove={onRemoveRoute} onExport={onExportRouteProject} onStartNew={onStartNewRouteProject} />
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -58,8 +58,8 @@ It is not a source downloader, and it never turns missing states into a claim of
     </td>
   </tr>
   <tr>
-    <td><strong>Capture result</strong><br />Mode switch, Smart Capture, component picking, and quick export stay close at hand.</td>
-    <td><strong>Reference workspace</strong><br />Evidence summary, export actions, and automatically planned supplemental tasks live in one place.</td>
+    <td><strong>Capture result</strong><br />Keeps only mode, Smart Capture, component picking, and export; detailed briefs live in the workspace.</td>
+    <td><strong>Reference workspace</strong><br />Centralizes evidence, export, and generated follow-up tasks without duplicate actions.</td>
   </tr>
 </table>
 
@@ -69,7 +69,7 @@ It is not a source downloader, and it never turns missing states into a claim of
   <img src="docs/assets/design-lens-sidepanel-coverage.png" alt="Design Lens Rebuild coverage, technical clues, and route project" width="768" />
 </p>
 
-Rebuild does not hide uncertainty behind a single completion score. Structure, style, state, screenshot, responsive, and Canvas evidence are reported separately. Unrun candidate acceptance and unauthorized Canvas evidence remain explicit gaps. A project can contain up to eight same-origin routes for per-route verification.
+Rebuild does not hide uncertainty behind a single completion score. Structure, style, state, screenshot, responsive, and Canvas evidence are reported separately; technical signals and Recorder stay collapsed until needed. A project can contain up to eight same-origin routes for per-route verification.
 
 ### 3. Guided Capture: The User Acts, The Extension Observes
 

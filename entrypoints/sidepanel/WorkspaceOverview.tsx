@@ -5,7 +5,7 @@ import type { Locale } from "../../src/shared/i18n";
 import type { DesignCapture } from "../../src/shared/schema";
 import type { SmartCaptureTask } from "../../src/smart-capture/types";
 
-export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, isBusy, isRecording, hasAiKey, isCurrentResult, onCapture, onStop, onImprove, onPick, onExport, onOpenSettings, onShowCurrent }: {
+export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, isBusy, isRecording, hasAiKey, isCurrentResult, onCapture, onStop, onImprove, onExport, onOpenSettings, onShowCurrent }: {
   capture: DesignCapture | null;
   tasks: SmartCaptureTask[];
   recorderGapCount: number;
@@ -17,7 +17,6 @@ export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, is
   onCapture: () => void;
   onStop: () => void;
   onImprove: () => void;
-  onPick: () => void;
   onExport: () => void;
   onOpenSettings: () => void;
   onShowCurrent: () => void;
@@ -64,7 +63,6 @@ export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, is
             <button className="workspace-secondary" type="button" onClick={onCapture} disabled={isBusy}><ScanSearch aria-hidden="true" />{zh ? "重新捕获" : "Recapture"}</button>
           ) : null}
           {isCurrentResult ? <button className="workspace-secondary" type="button" onClick={onImprove} disabled={isBusy || isRecording}>{nextTaskNeedsTarget ? <Crosshair aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}{nextTaskNeedsTarget ? (zh ? "定位首个缺口目标" : "Locate next gap target") : recorderGapCount ? (zh ? `补采 ${recorderGapCount} 个关键缺口` : `Capture ${recorderGapCount} key ${recorderGapCount === 1 ? "gap" : "gaps"}`) : (zh ? "补充覆盖" : "Improve coverage")}</button> : null}
-          {isCurrentResult ? <button className="workspace-secondary" type="button" onClick={onPick} disabled={isBusy || isRecording}><Crosshair aria-hidden="true" />{zh ? "选取组件" : "Pick component"}</button> : null}
         </div>
         {!isCurrentResult ? <div className="historical-context"><span>{zh ? "这是历史结果，仅支持查看和导出。" : "This is a historical result and is read-only."}</span><button type="button" onClick={onShowCurrent}>{zh ? "返回当前标签页" : "Show current tab"}</button></div> : null}
         {!isRebuild && !hasAiKey ? <button className="inline-command" type="button" onClick={onOpenSettings}><Settings2 aria-hidden="true" />{zh ? "配置 AI 后生成 Prompt" : "Configure AI for prompt generation"}</button> : null}

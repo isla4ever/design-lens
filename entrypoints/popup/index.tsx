@@ -223,11 +223,17 @@ function Popup() {
   }
 
   function openPackFlow() {
-    if (!capture || isBusy) return;
+    if (!localizedCapture || isBusy) return;
+    if (designBrief.mode === "rebuild" && !designBrief.rebuild.authorizationConfirmed) {
+      void openWorkspace("settings");
+      return;
+    }
     if (designBrief.mode === "reference" && !hasAiKey) {
       void openWorkspace("settings");
       setMessage(locale === "zh" ? "需要先配置 AI API Key 才能生成 Prompt；也可以先导出不含 Prompt 的基础资料包。" : "Configure an AI API key to generate a prompt, or export the evidence-only pack.");
+      return;
     }
+    void submitBrief(localizedCapture, designBrief);
   }
 
   async function openWorkspace(view: SidePanelView = "overview") {
@@ -368,11 +374,11 @@ function Popup() {
       <section className="command-surface">
         <button className={status === "recording" ? "primary-action recording" : "primary-action"} onClick={requestSmartCapture} disabled={isBusy}>
           {status === "loading" ? <RefreshCw aria-hidden="true" /> : <ScanSearch aria-hidden="true" />}
-          {status === "recording" ? (locale === "zh" ? "停止捕获" : "Stop capture") : designBrief.mode === "rebuild" ? (locale === "zh" ? isCollectorBuild ? "智能深度捕获" : "智能重建捕获" : isCollectorBuild ? "Smart deep capture" : "Smart rebuild capture") : t.primaryAction}
+          {status === "recording" ? (locale === "zh" ? "停止捕获" : "Stop capture") : designBrief.mode === "rebuild" ? (locale === "zh" ? isCollectorBuild ? "深度捕获" : "智能重建" : isCollectorBuild ? "Deep capture" : "Smart rebuild") : t.primaryAction}
         </button>
         <button className="secondary-action" onClick={requestSectionPick} disabled={isBusy || status === "recording"}>
           <Crosshair aria-hidden="true" />
-          {designBrief.mode === "rebuild" ? (locale === "zh" ? "选取重建组件" : "Pick rebuild component") : t.secondaryAction}
+          {locale === "zh" ? "选取组件" : "Pick component"}
         </button>
       </section>
 
@@ -404,7 +410,6 @@ function Popup() {
           brief={designBrief}
           lastPackKind={lastPack?.kind ?? null}
           onGenerate={openPackFlow}
-          onSubmitBrief={(brief) => submitBrief(localizedCapture, brief)}
           onExportEvidence={exportEvidenceOnlyPack}
           onDownloadPack={downloadLastPack}
           onImproveCoverage={requestManualRecording}

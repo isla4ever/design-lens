@@ -15,7 +15,7 @@ export function CaptureModeSelector({ mode, locale, disabled, onChange }: {
         <strong>{zh ? "设计参照" : "Reference"}</strong>
       </button>
       <button className={mode === "rebuild" ? "active" : ""} type="button" aria-pressed={mode === "rebuild"} disabled={disabled} onClick={() => onChange("rebuild")}>
-        <strong>{zh ? "高保真重建" : "Rebuild"}</strong>
+        <strong>{zh ? "重建" : "Rebuild"}</strong>
       </button>
     </section>
   );

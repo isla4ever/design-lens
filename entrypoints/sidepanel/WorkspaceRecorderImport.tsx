@@ -1,5 +1,5 @@
 import React from "react";
-import { FileJson2, Trash2, Upload, Workflow } from "lucide-react";
+import { FileJson2, Trash2, Upload } from "lucide-react";
 import type { ImportedRecorderFlowMatch, ImportedRecorderFlowPlan, ImportedRecorderWarning } from "../../src/capture-v2/core/imported-recorder-flow";
 import type { Locale } from "../../src/shared/i18n";
 import { getRecorderGapBreakdown } from "../../src/smart-capture/recorder-gap-planner";
@@ -17,10 +17,7 @@ export function WorkspaceRecorderImport({ flow, match, locale, disabled, onImpor
   return (
     <section className="recorder-import" aria-labelledby="recorder-import-title">
       <div className="recorder-import-head">
-        <div>
-          <strong id="recorder-import-title"><Workflow aria-hidden="true" />{zh ? "Recorder 流程" : "Recorder flow"}</strong>
-          <span>{zh ? "导入现有 DevTools Recorder JSON" : "Import an existing DevTools Recorder JSON file"}</span>
-        </div>
+        <span id="recorder-import-title">{zh ? "导入 DevTools Recorder JSON" : "Import DevTools Recorder JSON"}</span>
         <label className={disabled ? "recorder-file-button disabled" : "recorder-file-button"}>
           <Upload aria-hidden="true" />{flow ? (zh ? "替换" : "Replace") : (zh ? "导入" : "Import")}
           <input

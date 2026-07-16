@@ -7,7 +7,7 @@
 html, body, #root { margin: 0; min-height: 100%; width: 100%; }
 body { min-width: 320px; }
 button, input, select, textarea { font: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; white-space: nowrap; }
 button:disabled { cursor: not-allowed; opacity: .52; }
 svg { height: 17px; width: 17px; }
 
@@ -73,22 +73,25 @@ svg { height: 17px; width: 17px; }
   z-index: 9;
 }
 
-.workspace-tabs button { align-items: center; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 10px; font-weight: 800; gap: 5px; justify-content: center; min-height: 44px; padding: 7px 4px 6px; }
+.workspace-tabs button { align-items: center; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 10px; font-weight: 800; gap: 5px; justify-content: center; min-height: 44px; min-width: 0; overflow: hidden; padding: 7px 4px 6px; }
+.workspace-tabs button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-tabs button.active { border-color: var(--accent); color: var(--text); }
 .workspace-tabs button.active svg { color: var(--accent); }
 .workspace-tabs button:focus-visible, .workspace-header-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .workspace-notice { align-items: center; background: var(--accent-soft); border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); color: var(--text); display: flex; font-size: 11px; gap: 8px; justify-content: space-between; line-height: 1.35; padding: 8px 12px; }
+.workspace-notice span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-notice button { background: transparent; border: 0; color: var(--muted); font-size: 18px; height: 28px; padding: 0; width: 28px; }
 .workspace-content { margin: 0 auto; max-width: 920px; padding: 14px 12px 28px; width: 100%; }
 
 .overview-layout, .coverage-layout, .settings-layout { display: grid; gap: 18px; }
+.coverage-secondary { display: grid; gap: 0; min-width: 0; }
 .result-summary, .task-section, .workspace-section { border-bottom: 1px solid var(--line); padding-bottom: 16px; }
 .result-summary-head { align-items: start; display: flex; gap: 12px; justify-content: space-between; }
 .result-summary-head > div { min-width: 0; }
 .result-summary-head span, .section-heading span { color: var(--accent-strong); display: block; font-size: 10px; font-weight: 900; margin-bottom: 4px; }
-.result-summary-head h2, .section-heading h2 { font-size: 16px; line-height: 1.25; margin: 0; overflow-wrap: anywhere; }
-.outcome { border: 1px solid var(--line); border-radius: 999px; flex: 0 0 auto; font-size: 9px; padding: 5px 7px; }
+.result-summary-head h2, .section-heading h2 { font-size: 16px; line-height: 1.25; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outcome { border: 1px solid var(--line); border-radius: 999px; flex: 0 0 auto; font-size: 9px; padding: 5px 7px; white-space: nowrap; }
 .outcome.complete { border-color: var(--accent); color: var(--accent-strong); }
 .outcome.degraded { border-color: var(--info); color: var(--info); }
 .outcome.cancelled { color: var(--muted); }
@@ -97,16 +100,17 @@ svg { height: 17px; width: 17px; }
 .workspace-metrics > div { border-right: 1px solid var(--line); min-width: 0; padding: 10px 5px; }
 .workspace-metrics > div:last-child { border-right: 0; }
 .workspace-metrics strong { display: block; font-size: 19px; line-height: 1; }
-.workspace-metrics span { color: var(--muted); display: block; font-size: 9px; margin-top: 5px; }
+.workspace-metrics span { color: var(--muted); display: block; font-size: 9px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace-action-grid { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; margin-top: 12px; }
-.workspace-action-grid button, .save-brief { align-items: center; border-radius: 6px; display: flex; font-size: 11px; font-weight: 850; gap: 7px; justify-content: center; min-height: 42px; padding: 8px 10px; }
+.workspace-action-grid button, .save-brief { align-items: center; border-radius: 6px; display: flex; font-size: 11px; font-weight: 850; gap: 7px; justify-content: center; min-height: 42px; min-width: 0; overflow: hidden; padding: 8px 10px; text-overflow: ellipsis; }
 .workspace-primary { background: var(--accent); border: 1px solid var(--accent); color: #111713; }
 .workspace-secondary { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 .workspace-stop { background: var(--danger); border: 1px solid var(--danger); color: #170706; }
 .workspace-action-grid .workspace-primary { grid-column: 1 / -1; }
 .inline-command { align-items: center; background: transparent; border: 0; color: var(--info); display: flex; font-size: 10px; gap: 6px; margin-top: 10px; min-height: 32px; padding: 4px 0; }
 .historical-context { align-items: center; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 10px; gap: 10px; justify-content: space-between; line-height: 1.35; margin-top: 10px; padding-top: 10px; }
+.historical-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .historical-context button { background: transparent; border: 0; color: var(--info); flex: 0 0 auto; font-size: 10px; padding: 5px 0; }
 
 .section-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 10px; }
@@ -116,8 +120,8 @@ svg { height: 17px; width: 17px; }
 .workspace-task.high { border-color: var(--danger); }
 .workspace-task.medium { border-color: var(--info); }
 .workspace-task.low { border-color: var(--muted); }
-.workspace-task strong { font-size: 11px; }
-.workspace-task span, .quiet-state, .workspace-placeholder { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; }
+.workspace-task strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-task span, .quiet-state, .workspace-placeholder { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace-empty { align-items: center; display: grid; gap: 10px; justify-items: center; min-height: 280px; text-align: center; }
 .workspace-empty > svg { color: var(--accent); height: 28px; width: 28px; }
@@ -130,9 +134,9 @@ svg { height: 17px; width: 17px; }
 .health-head span { color: var(--accent-strong); font-size: 10px; font-weight: 900; }
 .health-bar { background: var(--surface-2); border-radius: 999px; height: 7px; overflow: hidden; }
 .health-bar span { background: var(--accent); display: block; height: 100%; }
-.evidence-health p { color: var(--muted); font-size: 10px; line-height: 1.4; margin: 0; }
+.evidence-health p { color: var(--muted); font-size: 10px; line-height: 1.4; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .timeline-meta { display: flex; flex-wrap: wrap; gap: 5px; }
-.timeline-meta span { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; padding: 4px 6px; }
+.timeline-meta span { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; padding: 4px 6px; white-space: nowrap; }
 .coverage-list { display: grid; gap: 6px; grid-template-columns: repeat(3, 1fr); }
 .coverage-item { border-bottom: 2px solid var(--line); display: grid; gap: 3px; min-width: 0; padding: 5px 2px 7px; }
 .coverage-item span, .coverage-item strong { font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -144,20 +148,27 @@ svg { height: 17px; width: 17px; }
 .verification-status { border-top: 1px solid var(--line); display: grid; gap: 8px; grid-template-columns: 18px 1fr; padding-top: 9px; }
 .verification-status svg { height: 15px; width: 15px; }
 .verification-status strong, .verification-status span { display: block; font-size: 10px; }
-.verification-status span { color: var(--muted); line-height: 1.35; margin-top: 2px; }
+.verification-status span { color: var(--muted); line-height: 1.35; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .verification-status.ready svg { color: var(--accent); }
 .verification-status.blocked svg { color: var(--danger); }
+
+.workspace-disclosure { padding-bottom: 10px; }
+.workspace-disclosure > summary { align-items: center; color: var(--text); cursor: pointer; display: grid; font-size: 11px; font-weight: 850; gap: 8px; grid-template-columns: 18px minmax(0, 1fr) 16px; list-style: none; min-height: 40px; padding: 0 2px; }
+.workspace-disclosure > summary::-webkit-details-marker { display: none; }
+.workspace-disclosure > summary > span { align-items: center; display: flex; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-disclosure > summary small { color: var(--accent-strong); flex: 0 0 auto; font-size: 9px; }
+.workspace-disclosure > summary svg { height: 15px; width: 15px; }
+.workspace-disclosure .disclosure-chevron { color: var(--muted); transition: transform 160ms ease; }
+.workspace-disclosure[open] .disclosure-chevron { transform: rotate(180deg); }
 
 .technical-signals { display: grid; margin: 0; }
 .technical-signals > div { border-top: 1px solid var(--line); display: grid; gap: 8px; grid-template-columns: 88px 1fr; padding: 9px 0; }
 .technical-signals dt { color: var(--muted); font-size: 10px; }
-.technical-signals dd { font-size: 10px; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
+.technical-signals dd { font-size: 10px; line-height: 1.4; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .recorder-import { display: grid; gap: 10px; }
 .recorder-import-head { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
-.recorder-import-head > div { min-width: 0; }
-.recorder-import-head strong { align-items: center; display: flex; font-size: 12px; gap: 6px; }
-.recorder-import-head span { color: var(--muted); display: block; font-size: 10px; line-height: 1.35; margin-top: 3px; }
+.recorder-import-head span { color: var(--muted); display: block; font-size: 10px; line-height: 1.35; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recorder-file-button { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--text); cursor: pointer; display: flex; flex: 0 0 auto; font-size: 10px; gap: 6px; justify-content: center; min-height: 38px; padding: 7px 9px; }
 .recorder-file-button.disabled { cursor: not-allowed; opacity: .52; }
 .recorder-file-button input { display: none; }
@@ -174,10 +185,11 @@ svg { height: 17px; width: 17px; }
 .recorder-flow-metrics dt { color: var(--muted); font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recorder-flow-metrics dd { font-size: 14px; font-weight: 850; margin: 3px 0 0; }
 .recorder-warnings { color: var(--muted); display: grid; font-size: 9px; gap: 5px; line-height: 1.4; margin: 0; padding-left: 16px; }
+.recorder-warnings li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recorder-match-summary { align-items: baseline; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 6px; display: flex; font-size: 10px; gap: 8px; justify-content: space-between; padding: 8px; }
 .recorder-match-summary strong { color: var(--accent-strong); }
-.recorder-match-summary span { color: var(--text); }
-.recorder-gap-note { border-left: 2px solid var(--info); color: var(--muted); font-size: 9px; line-height: 1.4; margin: -3px 0 0; padding-left: 8px; }
+.recorder-match-summary span { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recorder-gap-note { border-left: 2px solid var(--info); color: var(--muted); font-size: 9px; line-height: 1.4; margin: -3px 0 0; overflow: hidden; padding-left: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .recorder-gap-note.complete { border-color: var(--accent); color: var(--accent-strong); }
 .recorder-clear { align-items: center; background: transparent; border: 0; color: var(--danger); display: flex; font-size: 10px; gap: 6px; justify-self: start; min-height: 32px; padding: 4px 0; }
 
@@ -186,6 +198,7 @@ svg { height: 17px; width: 17px; }
 .route-project-head > div { min-width: 0; }
 .route-project-head strong { align-items: center; display: flex; font-size: 12px; gap: 6px; }
 .route-project-head span, .route-empty, .route-warning { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.route-project-head span, .route-empty { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .route-add, .route-export, .route-new { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--text); display: flex; font-size: 10px; gap: 6px; justify-content: center; min-height: 38px; padding: 7px 9px; }
 .route-export { color: var(--accent-strong); width: 100%; }
 .route-list { display: grid; gap: 1px; max-height: 180px; overflow-y: auto; }
@@ -243,14 +256,20 @@ svg { height: 17px; width: 17px; }
   .workspace-content { padding: 20px; }
   .overview-layout, .coverage-layout, .settings-layout { align-items: start; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); }
   .result-summary, .task-section, .workspace-section { border-bottom: 0; }
-  .task-section, .coverage-layout > :nth-child(even), .settings-layout > :nth-child(even) { border-left: 1px solid var(--line); padding-left: 20px; }
+  .task-section, .coverage-secondary, .settings-layout > :nth-child(even) { border-left: 1px solid var(--line); padding-left: 20px; }
 }
 
 @media (max-width: 359px) {
-  .workspace-tabs button { gap: 3px; }
+  .workspace-tabs button { gap: 0; }
+  .workspace-tabs button span { display: none; }
   .workspace-tabs svg { height: 14px; width: 14px; }
   .workspace-brand span { max-width: 150px; }
   .intent-row, .ai-field-grid { grid-template-columns: 1fr; }
   .recorder-import-head { align-items: start; }
   .recorder-import-head span { max-width: 170px; }
+}
+
+@media (max-width: 420px) {
+  .workspace-action-grid { grid-template-columns: 1fr; }
+  .workspace-action-grid .workspace-primary { grid-column: auto; }
 }
