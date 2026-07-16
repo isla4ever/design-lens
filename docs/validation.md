@@ -46,10 +46,13 @@ The recording-level probe captured:
 isolated Chromium page. The fixture contains 20,000 DOM nodes, continuous class
 mutations, scrolling, pointer movement, and a heartbeat control. The probe fails
 when an interaction is lost, 95th-percentile interaction latency exceeds 500ms,
-a page task exceeds 200ms, the timeline exceeds 12 heavy frames, or the browser
-console reports an error. The maximum driver round-trip remains in the output
-for diagnostics, but one CI scheduling outlier does not fail an otherwise
-responsive page.
+the recording adds a long task beyond the fixture-adjusted budget, the timeline
+exceeds 12 heavy frames, or the browser console reports an error. Before capture,
+the probe measures one second of the same continuously mutating page. The
+recording limit is the greater of 200ms or that baseline plus 100ms, so a slow
+runner is not attributed to the extension. The maximum driver round-trip remains
+in the output for diagnostics, but one scheduling outlier does not fail an
+otherwise responsive page.
 
 Use `DESIGN_LENS_STRESS_NODES=100000 npm run verify:performance` to verify the
 large-DOM circuit breaker. Pages above 50,000 nodes intentionally skip geometry
@@ -58,10 +61,10 @@ risk a full-document reflow.
 
 Last local results:
 
-| DOM nodes | Start | Stop | P95 interaction | Max round-trip | Max long task | Heavy frames |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 20,000 | 512ms | 527ms | 43ms | 61ms | 51ms | 2 |
-| 100,000 | 110ms | 99ms | 148ms | 177ms | 101ms | 0 |
+| DOM nodes | Start | Stop | P95 interaction | Max round-trip | Baseline task | Recording task | Heavy frames |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 20,000 | 347ms | 510ms | 49ms | 56ms | 0ms | 50ms | 2 |
+| 100,000 | 105ms | 80ms | 138ms | 141ms | 67ms | 81ms | 0 |
 
 Both runs received all 24 heartbeat interactions and completed without console
 errors. Exact timings vary by machine; the assertions above are the release gate.
@@ -89,8 +92,9 @@ WXT types before TypeScript compilation, reproducing the order used by CI.
 - Standard and Collector production builds: passed.
 - Standard and Collector ZIP permission/version validation: passed.
 - SHA-256 verification for both release archives: passed.
-- 100,000-node Smart Capture: 147ms start response, 75ms bounded run, 176ms
-  p95 interaction latency, 177ms maximum driver round-trip, 90ms maximum long
-  task, all 24 heartbeat actions received, and no console errors.
+- 100,000-node Smart Capture: 132ms start response, 128ms bounded run, 114ms
+  p95 interaction latency, 158ms maximum driver round-trip, 67ms fixture
+  baseline and 129ms maximum recording task, all 24 heartbeat actions received,
+  and no console errors.
 - User stop: the sample count remained unchanged after the 300ms post-stop
   window; the extreme-DOM path remained at zero samples.

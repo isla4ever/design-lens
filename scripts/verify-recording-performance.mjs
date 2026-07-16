@@ -25,8 +25,8 @@ try {
   await page.waitForTimeout(500);
   await page.evaluate(() => {
     document.body.getBoundingClientRect();
-    window.__longTasks = [];
   });
+  const baselineLongTasks = await measureLongTaskBaseline(page);
   reportStage("fixture-ready");
 
   const startBeganAt = performance.now();
@@ -74,6 +74,7 @@ try {
     stopDurationMs,
     maxInteractionLatencyMs: Math.round(Math.max(0, ...interactionLatencies)),
     p95InteractionLatencyMs: Math.round(percentile(interactionLatencies, 0.95)),
+    baselineMaxLongTaskMs: Math.round(Math.max(0, ...baselineLongTasks)),
     maxLongTaskMs: Math.round(Math.max(0, ...browserMetrics.longTasks)),
     longTaskCount: browserMetrics.longTasks.length,
     heartbeatCount: browserMetrics.heartbeatCount,
@@ -83,10 +84,11 @@ try {
     overlayPresent: browserMetrics.overlayPresent,
     consoleErrors
   };
+  const longTaskBudgetMs = Math.max(200, result.baselineMaxLongTaskMs + 100);
 
   if (result.heartbeatCount !== 24) throw new Error(`Page lost interactions: expected 24, received ${result.heartbeatCount}`);
   if (result.p95InteractionLatencyMs > 500) throw new Error(`Page p95 interaction latency exceeded 500ms: ${result.p95InteractionLatencyMs}ms`);
-  if (result.maxLongTaskMs > 200) throw new Error(`Extension recording produced a task over 200ms: ${result.maxLongTaskMs}ms`);
+  if (result.maxLongTaskMs > longTaskBudgetMs) throw new Error(`Extension recording long task exceeded the ${longTaskBudgetMs}ms fixture-adjusted budget: ${result.maxLongTaskMs}ms`);
   if (result.frameSamples > 12) throw new Error(`Frame sample budget exceeded: ${result.frameSamples}`);
   if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
 
@@ -111,6 +113,16 @@ function percentile(values, ratio) {
   if (!values.length) return 0;
   const sorted = [...values].sort((left, right) => left - right);
   return sorted[Math.max(0, Math.ceil(sorted.length * ratio) - 1)];
+}
+
+async function measureLongTaskBaseline(page) {
+  await page.evaluate(() => { window.__longTasks = []; });
+  await page.waitForTimeout(1000);
+  return page.evaluate(() => {
+    const baseline = [...window.__longTasks];
+    window.__longTasks = [];
+    return baseline;
+  });
 }
 
 async function installExtensionApiMock(page) {

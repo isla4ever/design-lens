@@ -30,6 +30,8 @@ version tags.
 - Use 95th-percentile interaction latency for browser CI gates while retaining
   the maximum driver round-trip for diagnostics, avoiding single-runner
   scheduling outliers without weakening page long-task or heartbeat checks.
+- Measure the continuously mutating stress fixture before capture so its own
+  long tasks are not misattributed to the extension on slower CI runners.
 - Inject the page bridge only after an explicit user action instead of loading
   it on every website.
 - Restore overlay, privacy-mask, and recording runtime state after preparation,
