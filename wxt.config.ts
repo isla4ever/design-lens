@@ -1,26 +1,15 @@
 import { defineConfig } from "wxt";
+import { buildExtensionManifest } from "./src/config/extension-manifest";
+
+const isCollectorBuild = process.env.DESIGN_LENS_COLLECTOR === "1";
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
-  manifest: {
-    name: "Design Lens",
-    description:
-      "Capture design tokens, component patterns, layout rules, and motion cues from live websites.",
-    version: "0.1.0",
-    permissions: ["activeTab", "scripting", "storage", "tabs"],
-    host_permissions: ["<all_urls>"],
-    action: {
-      default_title: "Analyze with Design Lens",
-      default_popup: "popup.html"
-    },
-    commands: {
-      "capture-selection": {
-        suggested_key: {
-          default: "Alt+Shift+D",
-          mac: "Alt+Shift+D"
-        },
-        description: "Capture the selected element with Design Lens"
-      }
+  outDir: isCollectorBuild ? ".output/collector" : ".output",
+  manifest: ({ mode }) => buildExtensionManifest(isCollectorBuild ? "collector" : mode),
+  hooks: {
+    "build:manifestGenerated": (_wxt, manifest) => {
+      if (!manifest.content_scripts?.length) delete manifest.content_scripts;
     }
   }
 });

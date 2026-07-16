@@ -11,6 +11,10 @@ import type { CaptureResponse } from "../../shared/messages";
 import type { CaptureEvidence, ComponentSpec, DesignCapture, InteractionSpec, LayoutSpec, MotionSpec } from "../../shared/schema";
 
 const MAX_ELEMENTS = 260;
+const MAX_SCANNED_NODES = 8000;
+const MAX_SEMANTIC_CANDIDATES = 320;
+const SCAN_SLICE_BUDGET_MS = 6;
+const MAX_FULL_CAPTURE_DOM_NODES = 50_000;
 const SEMANTIC_SELECTOR = [
   "main",
   "section",
@@ -47,11 +51,12 @@ const SEMANTIC_SELECTOR = [
 
 export async function capturePageDesign(doc: Document, win: Window, root: ParentNode = doc.body, locale: Locale = DEFAULT_LOCALE): Promise<CaptureResponse> {
   const rootElement = root instanceof Element ? root : doc.body;
-  const scope: DesignCapture["scope"] = rootElement === doc.body || rootElement === doc.documentElement ? "page" : "component";
-  const rootElements = [rootElement];
-  const allVisible = [...rootElements, ...Array.from(root.querySelectorAll("*"))].filter((element) => isVisibleElement(element, win));
+  const scope: NonNullable<DesignCapture["scope"]> = rootElement === doc.body || rootElement === doc.documentElement ? "page" : "component";
+  const domNodeCount = rootElement.getElementsByTagName("*").length + 1;
+  if (domNodeCount > MAX_FULL_CAPTURE_DOM_NODES) return buildBudgetLimitedCapture(doc, win, scope, locale, domNodeCount);
+  const allVisible = await collectVisibleElements(doc, rootElement, win);
   const semantic = allVisible.filter((element) => isSemanticElement(element));
-  const semanticEvidence = Array.from(root.querySelectorAll(SEMANTIC_SELECTOR)).filter(
+  const semanticEvidence = Array.from(root.querySelectorAll(SEMANTIC_SELECTOR)).slice(0, MAX_SEMANTIC_CANDIDATES).filter(
     (element) => !isCaptureNoiseElement(element) && hasSemanticEvidence(element)
   );
   const byArea = [...allVisible].sort((a, b) => scoreElement(b, win) - scoreElement(a, win));
@@ -137,6 +142,53 @@ export async function capturePageDesign(doc: Document, win: Window, root: Parent
   };
 }
 
+function buildBudgetLimitedCapture(doc: Document, win: Window, scope: NonNullable<DesignCapture["scope"]>, locale: Locale, domNodeCount: number): CaptureResponse {
+  const captureWithoutAnalysis = {
+    scope,
+    page: {
+      title: doc.title || "Untitled page",
+      url: win.location.href,
+      capturedAt: new Date().toISOString()
+    },
+    viewport: {
+      width: win.innerWidth,
+      height: win.innerHeight,
+      devicePixelRatio: win.devicePixelRatio
+    },
+    tokens: {
+      cssVariables: [],
+      colors: [],
+      backgrounds: [],
+      spacing: [],
+      radii: [],
+      shadows: [],
+      typography: []
+    },
+    layout: [],
+    layoutProfile: buildLayoutProfile([], win.innerWidth),
+    components: [],
+    motion: [],
+    interactions: [],
+    evidence: [{
+      selector: scope === "component" ? "selected-component" : "document",
+      reason: "Capture reduced to protect page responsiveness",
+      properties: {
+        domNodeCount: String(domNodeCount),
+        safetyLimit: String(MAX_FULL_CAPTURE_DOM_NODES)
+      }
+    }],
+    implementationTrace: collectImplementationTrace(doc, win)
+  } satisfies Omit<DesignCapture, "analysis">;
+
+  return {
+    ok: true,
+    capture: {
+      ...captureWithoutAnalysis,
+      analysis: analyzeDesign(captureWithoutAnalysis, locale)
+    }
+  };
+}
+
 function area(element: Element) {
   const rect = element.getBoundingClientRect();
   return rect.width * rect.height;
@@ -152,6 +204,39 @@ function scoreElement(element: Element, win: Window) {
 
 function isSemanticElement(element: Element) {
   return element.matches(SEMANTIC_SELECTOR);
+}
+
+async function collectVisibleElements(doc: Document, root: Element, win: Window) {
+  const visible: Element[] = [];
+  const walker = doc.createTreeWalker(root, 1);
+  let current: Node | null = root;
+  let scanned = 0;
+  let sliceStartedAt = win.performance.now();
+
+  while (current && scanned < MAX_SCANNED_NODES) {
+    if (current instanceof Element && isVisibleElement(current, win)) visible.push(current);
+    scanned += 1;
+    current = walker.nextNode();
+    if (scanned % 64 === 0 && win.performance.now() - sliceStartedAt >= SCAN_SLICE_BUDGET_MS) {
+      await yieldToBrowser(win);
+      sliceStartedAt = win.performance.now();
+    }
+  }
+
+  return visible;
+}
+
+function yieldToBrowser(win: Window) {
+  return new Promise<void>((resolve) => {
+    const idleWindow = win as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+    };
+    if (idleWindow.requestIdleCallback) {
+      idleWindow.requestIdleCallback(() => resolve(), { timeout: 50 });
+      return;
+    }
+    win.setTimeout(resolve, 0);
+  });
 }
 
 function uniqueElements(elements: Element[]) {
@@ -177,12 +262,12 @@ function dedupeMotion(motion: MotionSpec[]) {
 
 function inferSemanticComponents(doc: Document, root: Element, win: Window): ComponentSpec[] {
   const components: ComponentSpec[] = [];
-  const candidates = [
+  const candidates = uniqueElements([
     ...Array.from(root.querySelectorAll("nav, header, main, section, article, form, h1, h2, h3")),
     ...Array.from(root.querySelectorAll("[class*='hero' i], [class*='work' i], [class*='project' i], [class*='contact' i], [class*='form' i], [class*='menu' i]"))
-  ].filter((element) => !isCaptureNoiseElement(element) && (isVisibleElement(element, win) || hasSemanticEvidence(element)));
+  ]).slice(0, MAX_SEMANTIC_CANDIDATES).filter((element) => !isCaptureNoiseElement(element) && (isVisibleElement(element, win) || hasSemanticEvidence(element)));
 
-  for (const element of uniqueElements(candidates).slice(0, 48)) {
+  for (const element of candidates.slice(0, 48)) {
     const rect = element.getBoundingClientRect();
     const style = win.getComputedStyle(element);
     const selector = buildSelector(element);
@@ -213,6 +298,7 @@ function inferSemanticComponents(doc: Document, root: Element, win: Window): Com
 function inferSemanticInteractions(doc: Document, root: Element, win: Window): InteractionSpec[] {
   const interactions: InteractionSpec[] = [];
   const candidates = Array.from(root.querySelectorAll("a[href], button, input, textarea, select, [role='button'], [role='link'], [tabindex], [aria-expanded], [aria-controls]"))
+    .slice(0, MAX_SEMANTIC_CANDIDATES)
     .filter((element) => !isCaptureNoiseElement(element) && (isVisibleElement(element, win) || hasSemanticEvidence(element)));
 
   for (const element of candidates.slice(0, 80)) {

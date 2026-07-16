@@ -1,5 +1,5 @@
 import { capturePageDesign } from "./capture-page";
-import { isCaptureNoiseElement } from "../core/dom-utils";
+import { buildSelector, isCaptureNoiseElement } from "../core/dom-utils";
 import { DEFAULT_LOCALE, type Locale } from "../../shared/i18n";
 import type { CaptureResponse } from "../../shared/messages";
 
@@ -92,7 +92,8 @@ export function createElementPicker(getLocale: () => Locale = () => DEFAULT_LOCA
         isResolving = true;
         const target = selected ?? hovered ?? document.body;
         cleanup();
-        resolve(await capturePageDesign(document, window, target, getLocale()));
+        const response = await capturePageDesign(document, window, target, getLocale());
+        resolve(response.ok ? { ...response, selectedSelector: buildSelector(target) } : response);
       };
 
       const cancel = () => {

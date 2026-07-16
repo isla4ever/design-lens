@@ -5,6 +5,7 @@ export type EvidenceEventKind =
   | "snapshot-summary"
   | "implementation"
   | "pointer"
+  | "focus"
   | "scroll"
   | "mutation"
   | "animation"
@@ -152,6 +153,13 @@ export function buildReplayEvents(capture: DesignCapture): EvidenceEvent[] {
         speed: sample.speed,
         directionDeg: sample.directionDeg ?? 0
       }
+    })),
+    ...(timeline.focusSamples ?? []).slice(0, 24).map((sample): EvidenceEvent => ({
+      kind: "focus",
+      t: sample.t,
+      selector: sample.targetSelector,
+      summary: `focus ${sample.type}`,
+      data: { focused: sample.type === "in" }
     })),
     ...timeline.scrollSamples.slice(0, 24).map((sample): EvidenceEvent => ({
       kind: "scroll",

@@ -1,0 +1,40 @@
+name: Draft release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run audit:dependencies
+      - run: npm run check:all
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check:browser
+      - run: npm run package:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: design-lens-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          dist/*.zip dist/SHA256SUMS
+          --draft
+          --generate-notes
+          --title "Design Lens $GITHUB_REF_NAME"

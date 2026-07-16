@@ -75,6 +75,7 @@ export function buildAiAnalysisPayload(capture: DesignCapture, locale: Locale): 
       ].slice(0, 36),
       evidenceMetrics: {
         pointerSamples: timeline?.pointerSamples.length ?? 0,
+        focusSamples: timeline?.focusSamples?.length ?? 0,
         frameSamples: timeline?.frameSamples.length ?? 0,
         runtimeAnimations: timeline?.runtimeAnimations?.length ?? 0,
         domMutations: timeline?.domMutations?.length ?? 0,

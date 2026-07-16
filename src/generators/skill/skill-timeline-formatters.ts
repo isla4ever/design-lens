@@ -16,6 +16,7 @@ export function formatInteractionTimeline(capture: DesignCapture, locale: Locale
     ? [
         `- 录制时长：${timeline.durationMs}ms`,
         `- 鼠标轨迹：${timeline.pointerSamples.length} 个样本`,
+        `- 焦点轨迹：${timeline.focusSamples?.length ?? 0} 个样本`,
         `- 滚动轨迹：${timeline.scrollSamples.length} 个样本`,
         `- 帧差样本：${timeline.frameSamples.length} 帧`,
         `- 证据事件：${evidencePack.counts.replayEvents} 条`,
@@ -25,6 +26,7 @@ export function formatInteractionTimeline(capture: DesignCapture, locale: Locale
     : [
         `- Duration: ${timeline.durationMs}ms`,
         `- Pointer samples: ${timeline.pointerSamples.length}`,
+        `- Focus samples: ${timeline.focusSamples?.length ?? 0}`,
         `- Scroll samples: ${timeline.scrollSamples.length}`,
         `- Frame samples: ${timeline.frameSamples.length}`,
         `- Evidence events: ${evidencePack.counts.replayEvents}`,
@@ -77,6 +79,8 @@ function formatTimelinePatterns(timeline: NonNullable<DesignCapture["interaction
 
 function formatTimelineEvidence(timeline: NonNullable<DesignCapture["interactionTimeline"]>, locale: Locale) {
   const pointerTypes = countValues(timeline.pointerSamples.map((sample) => sample.type ?? "move"));
+  const focusTypes = countValues((timeline.focusSamples ?? []).map((sample) => sample.type));
+  const focusTargets = [...new Set((timeline.focusSamples ?? []).map((sample) => sample.targetSelector).filter(Boolean))].slice(0, 5);
   const runtimeDetails = (timeline.runtimeAnimations ?? [])
     .slice(0, 5)
     .map((animation) => `${animation.name}:${animation.properties.join("+") || "state"}:${animation.keyframeCount}kf:${animation.durationMs}ms`);
@@ -88,10 +92,10 @@ function formatTimelineEvidence(timeline: NonNullable<DesignCapture["interaction
     .map((surface) => `${surface.signal}:${surface.tagName}:${surface.cssWidth}x${surface.cssHeight}`);
 
   if (locale === "zh") {
-    return `\n\n### 细节证据\n\n- Pointer 类型：${formatCounts(pointerTypes, "未捕捉到")}\n- 动画切片：${runtimeDetails.join("；") || "未捕捉到运行时动画"}\n- 性能时间线：${performanceDetails.join("；") || "未捕捉到 paint/layout/longtask"}\n- 视觉表面：${surfaceDetails.join("；") || "未捕捉到 canvas/video/img/svg 表面"}`;
+    return `\n\n### 细节证据\n\n- Pointer 类型：${formatCounts(pointerTypes, "未捕捉到")}\n- Focus 类型：${formatCounts(focusTypes, "未捕捉到")}；目标：${focusTargets.join("、") || "未捕捉到"}\n- 动画切片：${runtimeDetails.join("；") || "未捕捉到运行时动画"}\n- 性能时间线：${performanceDetails.join("；") || "未捕捉到 paint/layout/longtask"}\n- 视觉表面：${surfaceDetails.join("；") || "未捕捉到 canvas/video/img/svg 表面"}`;
   }
 
-  return `\n\n### Detail Evidence\n\n- Pointer types: ${formatCounts(pointerTypes, "not captured")}\n- Animation slices: ${runtimeDetails.join("; ") || "no runtime animations captured"}\n- Performance timeline: ${performanceDetails.join("; ") || "no paint/layout/longtask captured"}\n- Visual surfaces: ${surfaceDetails.join("; ") || "no canvas/video/img/svg surface captured"}`;
+  return `\n\n### Detail Evidence\n\n- Pointer types: ${formatCounts(pointerTypes, "not captured")}\n- Focus types: ${formatCounts(focusTypes, "not captured")}; targets: ${focusTargets.join(", ") || "not captured"}\n- Animation slices: ${runtimeDetails.join("; ") || "no runtime animations captured"}\n- Performance timeline: ${performanceDetails.join("; ") || "no paint/layout/longtask captured"}\n- Visual surfaces: ${surfaceDetails.join("; ") || "no canvas/video/img/svg surface captured"}`;
 }
 
 function formatPrototypeRecipe(capture: DesignCapture, locale: Locale) {

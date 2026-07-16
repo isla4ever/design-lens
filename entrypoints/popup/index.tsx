@@ -1,35 +1,40 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Check, Crosshair, KeyRound, Languages, MoonStar, RefreshCw, ScanSearch, SunMedium } from "lucide-react";
+import { Check, Crosshair, Languages, MoonStar, PanelRightOpen, RefreshCw, ScanSearch, ShieldCheck, SunMedium, X } from "lucide-react";
 import { buildAiAnalysisPayload, buildAiPrompt } from "../../src/ai/context";
 import { generateAiDesignAnalysis } from "../../src/ai/openai";
 import { withLocalizedAnalysis } from "../../src/analyzer/core/analysis";
-import { createDefaultAiSettingsState, getActiveAiProfile, getAiSettingsState, setAiSettingsState, upsertAiProfile, type AiProviderProfile, type AiSettingsState } from "../../src/shared/ai-settings";
-import { DEFAULT_DESIGN_BRIEF, getStoredDesignBrief, setStoredDesignBrief, type DesignBrief } from "../../src/shared/design-brief";
+import { createDefaultAiSettingsState, getActiveAiProfile, getAiSettingsState, type AiSettingsState } from "../../src/shared/ai-settings";
+import { DEFAULT_DESIGN_BRIEF, getStoredDesignBrief, normalizeDesignBrief, setStoredDesignBrief, type CaptureMode, type DesignBrief } from "../../src/shared/design-brief";
 import { DEFAULT_LOCALE, messages, type Locale } from "../../src/shared/i18n";
 import { getStoredLocale, setStoredLocale } from "../../src/shared/locale-storage";
 import type { CaptureResponse } from "../../src/shared/messages";
+import { ensureDesignLensPageBridge } from "../../src/shared/page-bridge";
 import type { DesignCapture } from "../../src/shared/schema";
+import type { SmartCapturePhase } from "../../src/smart-capture/types";
+import { SIDE_PANEL_VIEW_KEY, type SidePanelView } from "../../src/shared/side-panel";
 import { getStoredTheme, resolveSystemTheme, setStoredTheme, type ThemeMode } from "../../src/shared/theme-storage";
 import { createZipBlob } from "../../src/shared/zip";
-import { AiSettingsMenu } from "./AiSettingsMenu";
-import { buildAiPromptPackFiles, buildEvidenceOnlyPackFiles, buildFailedAiBrief, buildPackFilename } from "./pack-builder";
+import { buildAiPromptPackFiles, buildEvidenceOnlyPackFiles, buildFailedAiBrief, buildPackFilename, buildRebuildDraftPackFiles, loadRebuildArtifactFiles } from "./pack-builder";
 import { captureHost, downloadBlob, hasSignals } from "./popup-utils";
+import { CaptureModeSelector } from "./CaptureModeSelector";
 import { ResultPanel } from "./ResultPanel";
 import { BusyOverlay, EmptyState } from "./StatusPanels";
 import type { PackDownload, Status } from "./types";
 import "./style.css";
 
 function Popup() {
+  const manifest = browser.runtime.getManifest?.();
+  const isCollectorBuild = manifest?.permissions?.includes("debugger") ?? false;
   const [status, setStatus] = useState<Status>("idle");
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const [theme, setTheme] = useState<ThemeMode>(resolveSystemTheme());
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
-  const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [aiSettingsState, setLocalAiSettingsState] = useState<AiSettingsState>(createDefaultAiSettingsState());
   const [designBrief, setDesignBrief] = useState<DesignBrief>(DEFAULT_DESIGN_BRIEF);
   const [capture, setCapture] = useState<DesignCapture | null>(null);
   const [lastPack, setLastPack] = useState<PackDownload | null>(null);
+  const [pendingRebuildAction, setPendingRebuildAction] = useState<"smart" | "manual" | "pick" | null>(null);
   const [message, setMessage] = useState(messages[DEFAULT_LOCALE].openHint);
   const t = messages[locale];
 
@@ -72,54 +77,105 @@ function Popup() {
     await syncActiveTab({ type: "DESIGN_LENS_SET_THEME", theme: nextTheme });
   }
 
-  async function saveAiProfile(profile: AiProviderProfile) {
-    if (isBusy) return;
-    const nextState = upsertAiProfile(aiSettingsState, {
-      ...profile,
-      updatedAt: new Date().toISOString()
-    });
-    setLocalAiSettingsState(nextState);
-    await setAiSettingsState(nextState);
-    setAiMenuOpen(false);
-    setMessage(locale === "zh" ? "AI 配置已保存到本地。" : "AI settings saved locally.");
+  async function changeCaptureMode(mode: CaptureMode) {
+    if (isBusy || status === "recording" || mode === designBrief.mode) return;
+    const nextBrief = normalizeDesignBrief({ ...designBrief, mode });
+    setDesignBrief(nextBrief);
+    setLastPack(null);
+    setPendingRebuildAction(null);
+    await setStoredDesignBrief(nextBrief);
+    setMessage(locale === "zh"
+      ? mode === "reference" ? "已切换为设计参照模式。" : "已切换为高保真重建模式；当前采集将先生成重建草稿。"
+      : mode === "reference" ? "Switched to Reference mode." : "Switched to Rebuild mode. Current capture will produce a rebuild draft.");
   }
 
-  async function clearSavedAi(profileId: string) {
-    if (isBusy) return;
-    const fallback = createDefaultAiSettingsState();
-    const profiles = { ...aiSettingsState.profiles };
-    delete profiles[profileId];
-    if (!Object.keys(profiles).length) {
-      const profile = getActiveAiProfile(fallback);
-      profiles[profile.id] = profile;
-    }
-    const activeProfileId = aiSettingsState.activeProfileId === profileId ? Object.keys(profiles)[0] ?? fallback.activeProfileId : aiSettingsState.activeProfileId;
-    const nextState = { activeProfileId, profiles };
-    setLocalAiSettingsState(nextState);
-    await setAiSettingsState(nextState);
-    setMessage(locale === "zh" ? "已清除当前 AI 配置。" : "Current AI settings cleared.");
-  }
-
-  async function toggleRecording() {
+  async function toggleSmartCapture(captureBrief = designBrief) {
     if (isBusy) return;
     setStatus("loading");
-    setMessage(t.opening);
+    setMessage(status === "recording" ? (locale === "zh" ? "正在停止并整理已采集证据..." : "Stopping and preserving captured evidence...") : t.opening);
     try {
       const tabId = await ensureContentScript();
       if (!tabId) throw new Error(t.normalPageOnly);
-      const response = await browser.tabs.sendMessage(tabId, { type: "DESIGN_LENS_OPEN_RECORDER", locale }) as CaptureResponse;
+      const response = await browser.tabs.sendMessage(tabId, status === "recording"
+        ? { type: "DESIGN_LENS_RECORD_STOP", locale }
+        : { type: "DESIGN_LENS_SMART_CAPTURE_START", locale, mode: captureBrief.mode, rebuild: captureBrief.mode === "rebuild" ? captureBrief.rebuild : undefined }) as CaptureResponse;
       if (!response.ok) throw new Error(response.error);
       setStatus(response.isRecording ? "recording" : "idle");
-      setMessage(response.isRecording ? t.recordingActive : (locale === "zh" ? "录制控制已放到页面左下角。" : "Recording controls are on the lower-left of the page."));
+      setMessage(response.isRecording
+        ? formatSmartCapturePhase(response.smartCapture?.phase ?? "preflight", locale)
+        : (locale === "zh" ? "捕获已停止，停止前的有效证据已保留。" : "Capture stopped. Evidence collected before stopping was preserved."));
       if (hasSignals(response.capture)) {
         setCapture(response.capture);
         setLastPack(null);
+        if (!response.isRecording) setStatus("ready");
       }
+      if (response.isRecording) window.close();
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function openManualRecorder(captureBrief = designBrief) {
+    if (isBusy) return;
+    setStatus("loading");
+    setMessage(locale === "zh" ? "正在打开补充覆盖控制器..." : "Opening guided coverage controls...");
+    try {
+      const tabId = await ensureContentScript();
+      if (!tabId) throw new Error(t.normalPageOnly);
+      const response = await browser.tabs.sendMessage(tabId, { type: "DESIGN_LENS_OPEN_RECORDER", locale, mode: captureBrief.mode, rebuild: captureBrief.mode === "rebuild" ? captureBrief.rebuild : undefined }) as CaptureResponse;
+      if (!response.ok) throw new Error(response.error);
+      setStatus("idle");
+      setMessage(locale === "zh" ? "补充覆盖控制已放到页面左下角。" : "Guided coverage controls are on the lower-left of the page.");
       window.close();
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  function requestSmartCapture() {
+    if (status === "recording") {
+      void toggleSmartCapture();
+      return;
+    }
+    if (designBrief.mode === "rebuild" && !designBrief.rebuild.authorizationConfirmed) {
+      setPendingRebuildAction("smart");
+      return;
+    }
+    void toggleSmartCapture();
+  }
+
+  function requestManualRecording() {
+    if (designBrief.mode === "rebuild" && !designBrief.rebuild.authorizationConfirmed) {
+      setPendingRebuildAction("manual");
+      return;
+    }
+    void openManualRecorder();
+  }
+
+  function requestSectionPick() {
+    if (designBrief.mode === "rebuild" && !designBrief.rebuild.authorizationConfirmed) {
+      setPendingRebuildAction("pick");
+      return;
+    }
+    void pickSection();
+  }
+
+  async function confirmRebuildAuthorization() {
+    if (!pendingRebuildAction || isBusy) return;
+    const action = pendingRebuildAction;
+    const nextBrief = normalizeDesignBrief({
+      ...designBrief,
+      mode: "rebuild",
+      rebuild: { ...designBrief.rebuild, authorizationConfirmed: true }
+    });
+    setDesignBrief(nextBrief);
+    setPendingRebuildAction(null);
+    await setStoredDesignBrief(nextBrief);
+    if (action === "smart") await toggleSmartCapture(nextBrief);
+    else if (action === "manual") await openManualRecorder(nextBrief);
+    else await pickSection();
   }
 
   async function pickSection() {
@@ -149,27 +205,46 @@ function Popup() {
       const response = await browser.tabs.sendMessage(tabId, { type: "DESIGN_LENS_RECORD_STATUS", locale: nextLocale }) as CaptureResponse;
       if (response.ok && response.isRecording) {
         setStatus("recording");
-        setMessage(messages[nextLocale].recordingActive);
+        setMessage(response.smartCapture ? formatSmartCapturePhase(response.smartCapture.phase, nextLocale) : messages[nextLocale].recordingActive);
       }
       if (response.ok && hasSignals(response.capture)) {
         setCapture(response.capture);
         setLastPack(null);
+        if (!response.isRecording) {
+          setStatus("ready");
+          setMessage(response.capture.smartCapture
+            ? nextLocale === "zh" ? "智能捕获已完成，结果可以导出。" : "Smart Capture is complete and ready to export."
+            : messages[nextLocale].opened);
+        }
       }
     } catch {
       // No content script yet on this page; idle is fine.
     }
   }
 
-  function openAiFlow() {
+  function openPackFlow() {
     if (!capture || isBusy) return;
-    if (!hasAiKey) {
-      setAiMenuOpen(true);
+    if (designBrief.mode === "reference" && !hasAiKey) {
+      void openWorkspace("settings");
       setMessage(locale === "zh" ? "需要先配置 AI API Key 才能生成 Prompt；也可以先导出不含 Prompt 的基础资料包。" : "Configure an AI API key to generate a prompt, or export the evidence-only pack.");
     }
   }
 
+  async function openWorkspace(view: SidePanelView = "overview") {
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error(locale === "zh" ? "当前标签页不可用。" : "The current tab is unavailable.");
+      await browser.storage.local.set({ [SIDE_PANEL_VIEW_KEY]: view });
+      await browser.sidePanel.open({ tabId: tab.id });
+      window.close();
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   function exportEvidenceOnlyPack() {
-    if (!localizedCapture || isBusy) return;
+    if (!localizedCapture || isBusy || designBrief.mode !== "reference") return;
     const files = buildEvidenceOnlyPackFiles(localizedCapture, designBrief, locale);
     const blob = createZipBlob(files);
     const name = buildPackFilename(localizedCapture, "evidence-only");
@@ -180,13 +255,12 @@ function Popup() {
   }
 
   async function generateAiPack(localized: DesignCapture, brief: DesignBrief) {
-    const normalizedBrief = { ...brief };
+    const normalizedBrief = normalizeDesignBrief({ ...brief, mode: "reference" });
     setStatus("generating");
     setMessage(locale === "zh" ? "正在压缩证据、调用 AI 并生成可交付资料包..." : "Compressing evidence, calling AI, and building the delivery pack...");
     setDesignBrief(normalizedBrief);
     await setStoredDesignBrief(normalizedBrief);
     setLanguageMenuOpen(false);
-    setAiMenuOpen(false);
     const payload = buildAiAnalysisPayload(localized, locale);
     const prompt = buildAiPrompt(payload, normalizedBrief);
     const settings = activeAiProfile;
@@ -194,7 +268,7 @@ function Popup() {
     try {
       if (!settings.apiKey.trim()) {
         setStatus("ready");
-        setAiMenuOpen(true);
+        void openWorkspace("settings");
         setMessage(locale === "zh" ? "需要先配置 AI API Key 才能生成 Prompt；也可以先导出基础资料包。" : "Configure an AI API key to generate a prompt. You can still export the evidence-only pack.");
         return;
       }
@@ -223,6 +297,32 @@ function Popup() {
     }
   }
 
+  async function exportRebuildDraft(localized: DesignCapture, brief: DesignBrief) {
+    if (isBusy) return;
+    const normalizedBrief = normalizeDesignBrief({ ...brief, mode: "rebuild" });
+    setStatus("generating");
+    setMessage(locale === "zh" ? "正在整理完整捕获、场景计划和验收规则..." : "Preparing the complete capture, scene plan, and acceptance rules...");
+    try {
+      const artifactFiles = await loadRebuildArtifactFiles(localized, locale);
+      const files = buildRebuildDraftPackFiles(localized, normalizedBrief, locale, artifactFiles);
+      const blob = createZipBlob(files);
+      const name = buildPackFilename(localized, "rebuild-draft");
+      setDesignBrief(normalizedBrief);
+      await setStoredDesignBrief(normalizedBrief);
+      setLastPack({ name, blob, kind: "rebuild-draft" });
+      downloadBlob(name, blob);
+      setStatus("ready");
+      setMessage(locale === "zh" ? "重建草稿已下载；当前视口截图和脱敏事件已打包，其余缺口已写入场景计划。" : "Rebuild draft downloaded with current-viewport screenshots and masked events; remaining gaps are recorded in the scene plan.");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function submitBrief(localized: DesignCapture, brief: DesignBrief) {
+    return brief.mode === "rebuild" ? exportRebuildDraft(localized, brief) : generateAiPack(localized, brief);
+  }
+
   function downloadLastPack() {
     if (!lastPack || isBusy) return;
     downloadBlob(lastPack.name, lastPack.blob);
@@ -235,7 +335,7 @@ function Popup() {
         <div className="mark">D</div>
         <div className="heading">
           <span>{t.eyebrow}</span>
-          <h1>{t.appName}</h1>
+          <h1>{isCollectorBuild ? manifest?.name ?? "Design Lens Collector" : t.appName}</h1>
           <p>{capture ? captureHost(capture.page.url) : t.tagline}</p>
         </div>
         <div className="header-actions">
@@ -257,28 +357,41 @@ function Popup() {
           <button className="icon-button theme-toggle" type="button" aria-label={themeLabel} onClick={() => toggleTheme()} disabled={isBusy}>
             {theme === "light" ? <SunMedium aria-hidden="true" /> : <MoonStar aria-hidden="true" />}
           </button>
-          <button className="icon-button" type="button" aria-label={locale === "zh" ? "AI 配置" : "AI settings"} aria-expanded={aiMenuOpen} onClick={() => setAiMenuOpen((isOpen) => !isOpen)} disabled={isBusy}>
-            <KeyRound aria-hidden="true" />
+          <button className="icon-button" type="button" aria-label={locale === "zh" ? "打开工作区" : "Open workspace"} title={locale === "zh" ? "打开工作区" : "Open workspace"} onClick={() => void openWorkspace()} disabled={isBusy}>
+            <PanelRightOpen aria-hidden="true" />
           </button>
         </div>
       </header>
 
-      {aiMenuOpen ? (
-        <section className="settings-inline">
-          <AiSettingsMenu locale={locale} state={aiSettingsState} onSave={saveAiProfile} onClear={clearSavedAi} />
-        </section>
-      ) : null}
+      <CaptureModeSelector mode={designBrief.mode} locale={locale} disabled={isBusy || status === "recording"} onChange={(mode) => void changeCaptureMode(mode)} />
 
       <section className="command-surface">
-        <button className={status === "recording" ? "primary-action recording" : "primary-action"} onClick={() => toggleRecording()} disabled={isBusy}>
+        <button className={status === "recording" ? "primary-action recording" : "primary-action"} onClick={requestSmartCapture} disabled={isBusy}>
           {status === "loading" ? <RefreshCw aria-hidden="true" /> : <ScanSearch aria-hidden="true" />}
-          {status === "recording" ? t.stopRecording : t.primaryAction}
+          {status === "recording" ? (locale === "zh" ? "停止捕获" : "Stop capture") : designBrief.mode === "rebuild" ? (locale === "zh" ? isCollectorBuild ? "智能深度捕获" : "智能重建捕获" : isCollectorBuild ? "Smart deep capture" : "Smart rebuild capture") : t.primaryAction}
         </button>
-        <button className="secondary-action" onClick={() => pickSection()} disabled={isBusy || status === "recording"}>
+        <button className="secondary-action" onClick={requestSectionPick} disabled={isBusy || status === "recording"}>
           <Crosshair aria-hidden="true" />
-          {t.secondaryAction}
+          {designBrief.mode === "rebuild" ? (locale === "zh" ? "选取重建组件" : "Pick rebuild component") : t.secondaryAction}
         </button>
       </section>
+
+      {pendingRebuildAction ? (
+        <section className="authorization-prompt" role="dialog" aria-labelledby="authorization-title">
+          <ShieldCheck aria-hidden="true" />
+          <div>
+            <strong id="authorization-title">{locale === "zh" ? "确认采集权限" : "Confirm capture permission"}</strong>
+            <p>{locale === "zh" ? "仅在你有权重建此页面并采集页面证据时继续。敏感输入会被脱敏，Canvas 默认不采集。" : "Continue only if you may rebuild this page and capture its evidence. Sensitive inputs are masked and Canvas capture stays off by default."}</p>
+          </div>
+          <button className="authorization-dismiss" type="button" aria-label={locale === "zh" ? "取消" : "Cancel"} onClick={() => setPendingRebuildAction(null)}>
+            <X aria-hidden="true" />
+          </button>
+          <button className="authorization-confirm" type="button" onClick={() => void confirmRebuildAuthorization()}>
+            <ShieldCheck aria-hidden="true" />
+            {locale === "zh" ? "确认并继续" : "Confirm and continue"}
+          </button>
+        </section>
+      ) : null}
 
       <div className={status === "error" ? "status error" : status === "recording" ? "status live" : "status"} aria-live="polite">{message}</div>
 
@@ -288,17 +401,18 @@ function Popup() {
           locale={locale}
           isBusy={isBusy}
           hasAiKey={hasAiKey}
-          aiProfile={activeAiProfile}
           brief={designBrief}
           lastPackKind={lastPack?.kind ?? null}
-          onGenerate={openAiFlow}
-          onSubmitBrief={(brief) => generateAiPack(localizedCapture, brief)}
+          onGenerate={openPackFlow}
+          onSubmitBrief={(brief) => submitBrief(localizedCapture, brief)}
           onExportEvidence={exportEvidenceOnlyPack}
           onDownloadPack={downloadLastPack}
+          onImproveCoverage={requestManualRecording}
+          onOpenWorkspace={() => void openWorkspace()}
         />
-      ) : <EmptyState locale={locale} />}
+      ) : <EmptyState locale={locale} mode={designBrief.mode} />}
 
-      {status === "generating" ? <BusyOverlay locale={locale} /> : null}
+      {status === "generating" ? <BusyOverlay locale={locale} mode={designBrief.mode} /> : null}
     </main>
   );
 }
@@ -312,14 +426,7 @@ async function ensureContentScript(shouldInject = true) {
 
   if (!shouldInject) return tab.id;
 
-  try {
-    await browser.tabs.sendMessage(tab.id, { type: "DESIGN_LENS_SET_LOCALE", locale: await getStoredLocale() });
-  } catch {
-    await browser.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["/content-scripts/content.js"]
-    });
-  }
+  await ensureDesignLensPageBridge(tab.id, await getStoredLocale());
 
   return tab.id;
 }
@@ -333,6 +440,22 @@ async function syncActiveTab(message: unknown) {
 function isInjectableUrl(url?: string) {
   if (!url) return false;
   return url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://");
+}
+
+function formatSmartCapturePhase(phase: SmartCapturePhase, locale: Locale) {
+  const labels: Record<SmartCapturePhase, [string, string]> = {
+    idle: ["准备智能捕获...", "Preparing Smart Capture..."],
+    preflight: ["正在检查页面规模与能力...", "Checking page size and capabilities..."],
+    stabilizing: ["正在等待页面进入稳定窗口...", "Waiting for a stable page window..."],
+    snapshot: ["正在捕获结构与视觉基线...", "Capturing structure and visual baselines..."],
+    observing: ["正在被动观察动画与页面变化...", "Passively observing motion and page changes..."],
+    finalizing: ["正在整理证据与补充任务...", "Finalizing evidence and coverage tasks..."],
+    complete: ["智能捕获已完成。", "Smart Capture complete."],
+    degraded: ["已降级完成，未覆盖内容会明确列出。", "Completed with limits; uncovered evidence is listed."],
+    cancelled: ["捕获已停止，已有证据已保留。", "Capture stopped; existing evidence was preserved."],
+    error: ["智能捕获失败。", "Smart Capture failed."]
+  };
+  return labels[phase][locale === "zh" ? 0 : 1];
 }
 
 createRoot(document.getElementById("root")!).render(<Popup />);

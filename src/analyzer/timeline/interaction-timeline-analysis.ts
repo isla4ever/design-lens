@@ -9,6 +9,7 @@ import type {
 } from "../../shared/schema";
 
 const FRAME_ELEMENT_LIMIT = 18;
+const CLASS_SIGNAL_SCAN_LIMIT = 2000;
 
 export function findTimelineElements(doc: Document, win: Window) {
   const selector = [
@@ -667,10 +668,18 @@ function scoreTimelineElement(element: Element, win: Window) {
 }
 
 function findClassSignal(doc: Document, pattern: RegExp) {
-  return Array.from(doc.querySelectorAll("[class], [id], [role], [aria-label]")).some((element) => {
-    if (isCaptureNoiseElement(element)) return false;
-    return pattern.test([element.id, element.getAttribute("class"), element.getAttribute("role"), element.getAttribute("aria-label")].filter(Boolean).join(" "));
-  });
+  const walker = doc.createTreeWalker(doc.documentElement, 1);
+  let current: Node | null = doc.documentElement;
+  let scanned = 0;
+  while (current && scanned < CLASS_SIGNAL_SCAN_LIMIT) {
+    if (current instanceof Element && !isCaptureNoiseElement(current)) {
+      const signal = [current.id, current.getAttribute("class"), current.getAttribute("role"), current.getAttribute("aria-label")].filter(Boolean).join(" ");
+      if (pattern.test(signal)) return true;
+    }
+    scanned += 1;
+    current = walker.nextNode();
+  }
+  return false;
 }
 
 export function trim<T>(items: T[], max: number) {

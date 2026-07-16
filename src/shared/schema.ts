@@ -1,3 +1,6 @@
+import type { RebuildEvidence } from "../capture-v2/core/rebuild-evidence";
+import type { SmartCaptureReport } from "../smart-capture/types";
+
 export type PageMeta = {
   title: string;
   url: string;
@@ -121,6 +124,12 @@ export type PointerSample = {
   directionDeg?: number | undefined;
   pressure?: number | undefined;
   buttons?: number | undefined;
+};
+
+export type FocusSample = {
+  t: number;
+  type: "in" | "out";
+  targetSelector: string;
 };
 
 export type ScrollSample = {
@@ -289,6 +298,7 @@ export type TimelineMetrics = {
 export type InteractionTimeline = {
   durationMs: number;
   pointerSamples: PointerSample[];
+  focusSamples?: FocusSample[] | undefined;
   scrollSamples: ScrollSample[];
   frameSamples: FrameSample[];
   runtimeAnimations?: RuntimeAnimationSample[] | undefined;
@@ -313,5 +323,7 @@ export type DesignCapture = {
   evidence: CaptureEvidence[];
   implementationTrace?: ImplementationTrace | undefined;
   interactionTimeline?: InteractionTimeline | undefined;
+  rebuildEvidence?: RebuildEvidence | undefined;
+  smartCapture?: SmartCaptureReport | undefined;
   analysis: DesignAnalysis;
 };

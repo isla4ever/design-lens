@@ -2,6 +2,8 @@ import { withLocalizedAnalysis } from "../analyzer/core/analysis";
 import { messages, type Locale } from "../shared/i18n";
 import type { DesignCapture } from "../shared/schema";
 import type { ThemeMode } from "../shared/theme-storage";
+import type { SmartCapturePhase } from "../smart-capture/types";
+import type { GuidedCaptureTask } from "../shared/messages";
 
 type OverlayVariant = "status" | "capture" | "recorder" | "recording";
 
@@ -259,15 +261,81 @@ export function buildIdleMarkup(locale: Locale) {
   `;
 }
 
-export function buildRecorderMarkup(locale: Locale, isRecording: boolean) {
+export function buildRecorderMarkup(locale: Locale, isRecording: boolean, guidedTask?: GuidedCaptureTask) {
   const t = messages[locale];
+  const guidedCopy = guidedTask ? formatGuidedTaskCopy(guidedTask, locale) : null;
   return `
     <span class="pulse-dot ${isRecording ? "is-recording" : "is-ready"}"></span>
     <div class="status-copy">
-      <strong>${isRecording ? t.recordingActive : t.recorderTitle}</strong>
-      <span>${isRecording ? (locale === "zh" ? "浏览、悬停、滚动；完成后点结束。" : "Browse, hover, scroll; finish when ready.") : (locale === "zh" ? "点击开始后再记录页面状态。" : "Click start when you are ready to record states.")}</span>
+      <strong>${guidedCopy ? guidedCopy.title : isRecording ? t.recordingActive : t.recorderTitle}</strong>
+      <span>${guidedCopy ? guidedCopy.hint : isRecording ? (locale === "zh" ? "浏览、悬停、滚动；完成后点结束。" : "Browse, hover, scroll; finish when ready.") : (locale === "zh" ? "点击开始后再记录页面状态。" : "Click start when you are ready to record states.")}</span>
     </div>
     ${isRecording ? `<button class="record-action is-stop" data-action="record-stop">${t.stopRecording}</button>` : `<button class="record-action is-start" data-action="record-start">${t.startRecording}</button>`}
+  `;
+}
+
+export function formatGuidedTaskCopy(task: GuidedCaptureTask, locale: Locale) {
+  const zh = locale === "zh";
+  if (task.trigger === "hover" || task.state === "hover") {
+    return zh
+      ? { title: "补采悬停状态", hint: "将指针停在目标上，稳定后自动保存。" }
+      : { title: "Capture hover state", hint: "Keep the pointer on the target; it saves when stable." };
+  }
+  if (task.trigger === "scroll" || task.state === "scroll") {
+    const position = task.targetScrollY === undefined ? "" : zh ? `约 ${Math.round(task.targetScrollY)}px` : `about ${Math.round(task.targetScrollY)}px`;
+    return zh
+      ? { title: "补采滚动状态", hint: `滚动到${position || "目标位置"}，稳定后自动保存。` }
+      : { title: "Capture scroll state", hint: `Scroll to ${position || "the target position"}; it saves when stable.` };
+  }
+  if (task.trigger === "click") {
+    return zh
+      ? { title: "补采打开状态", hint: "点击目标并保持结果可见，稳定后自动保存。" }
+      : { title: "Capture open state", hint: "Click the target and keep the result visible; it saves when stable." };
+  }
+  if (task.trigger === "wait") {
+    return zh
+      ? { title: "等待目标状态", hint: "让目标内容出现并保持可见，稳定后自动保存。" }
+      : { title: "Wait for target state", hint: "Make the target content visible; it saves when stable." };
+  }
+  if (task.kind === "capture-responsive" || task.trigger === "initial") {
+    const viewport = task.viewport === "mobile" ? (zh ? "移动端" : "mobile") : (zh ? "桌面端" : "desktop");
+    return zh
+      ? { title: `补采${viewport}基线`, hint: `切换到${viewport}视口后自动保存。` }
+      : { title: `Capture ${viewport} baseline`, hint: `Switch to the ${viewport} viewport and it saves automatically.` };
+  }
+  if (task.state === "focus") {
+    return zh
+      ? { title: "补采聚焦状态", hint: "聚焦目标控件，稳定后自动保存。" }
+      : { title: "Capture focus state", hint: "Focus the target control; it saves when stable." };
+  }
+  return zh
+    ? { title: "补采关键交互", hint: "完成目标交互，证据稳定后自动保存。" }
+    : { title: "Capture key interaction", hint: "Complete the interaction; it saves when the evidence is stable." };
+}
+
+export function buildSmartCaptureMarkup(locale: Locale, phase: SmartCapturePhase, degraded = false) {
+  const zh = locale === "zh";
+  const labels: Record<SmartCapturePhase, [string, string, string, string]> = {
+    idle: ["准备智能捕获", "Ready for Smart Capture", "正在准备安全采集。", "Preparing safe capture."],
+    preflight: ["检查页面", "Checking page", "评估页面规模与可用能力。", "Assessing page size and capabilities."],
+    stabilizing: ["等待页面稳定", "Waiting for stability", "短暂等待页面进入稳定窗口。", "Waiting briefly for a stable page window."],
+    snapshot: ["捕获基础证据", "Capturing baseline", "收集一次结构、样式和截图基线。", "Collecting one structure, style, and screenshot baseline."],
+    observing: ["被动观察", "Passive observation", "记录短时动画与自然页面变化，不执行点击。", "Observing motion and natural changes without clicking."],
+    finalizing: ["整理证据", "Finalizing evidence", "正在停止采样并生成补充任务。", "Stopping samples and planning coverage tasks."],
+    complete: ["智能捕获完成", "Smart Capture complete", "结果已准备。", "Results are ready."],
+    degraded: ["已降级完成", "Completed with limits", "已保留安全证据，并标记未覆盖内容。", "Safe evidence was kept and gaps were marked."],
+    cancelled: ["已停止捕获", "Capture stopped", "已整理停止前的有效证据。", "Evidence collected before stopping was preserved."],
+    error: ["智能捕获失败", "Smart Capture failed", "请重试或改用补充覆盖。", "Retry or use guided coverage."]
+  };
+  const copy = labels[phase];
+  const finished = phase === "complete" || phase === "degraded" || phase === "cancelled" || phase === "error";
+  return `
+    <span class="${finished ? "mini-dot is-done" : "scan-orbit"}" aria-hidden="true"></span>
+    <div class="status-copy">
+      <strong>${zh ? copy[0] : copy[1]}${degraded && !finished ? (zh ? " · 已降级" : " · reduced") : ""}</strong>
+      <span>${zh ? copy[2] : copy[3]}</span>
+    </div>
+    ${finished ? "" : `<button class="record-action is-stop" data-action="record-stop">${zh ? "停止" : "Stop"}</button>`}
   `;
 }
 

@@ -1,184 +1,220 @@
 # Design Lens
 
-> 把优秀网页转成 AI 可用的设计参考包：Token、布局语法、动效证据、实现路线和高含金量编码 Prompt。
+> 把“参考这个网站”变成可追溯、可执行、可验收的 AI 前端上下文。
+
+[![CI](https://github.com/isla4ever/design-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/isla4ever/design-lens/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/version-0.2.0-2563eb)
+![Chrome MV3](https://img.shields.io/badge/Chrome-MV3-4285f4)
+![Status](https://img.shields.io/badge/status-alpha-f59e0b)
+[![License: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
+
+**中文** | [English](README.en.md)
+
+Design Lens 是一个 **evidence-first（证据优先）** 的 Chrome 扩展，面向 AI Coding、Vibe Coding 和前端设计还原工作流。它不只截一张图或总结页面，而是把真实网页转译为视觉 Token、布局结构、组件语法、交互时间线、动效证据、实现线索和验收规则。
+
+```text
+真实网页 → 智能捕获 → 结构化证据 → 明确缺口 → Prompt / Rebuild 草稿 → 场景验收
+```
+
+它不是源码下载器，也不会把缺失状态猜成“完整复刻”。Design Lens 的原则是：**有证据才描述，没有证据就明确标记缺口。**
+
+> [!IMPORTANT]
+> 当前版本处于 alpha 阶段，仅通过 Chrome 开发者模式安装。请只在你有权分析、参考或重建的页面上使用。
+
+## 项目亮点
+
+| 亮点 | Design Lens 的做法 |
+| --- | --- |
+| **一次操作完成基础捕获** | 默认只需点击“智能捕获”。插件在 15 秒总预算内完成有界索引、稳定快照和短时被动观察，持续变动或超大页面会安全降级。 |
+| **Reference 与 Rebuild 双模式** | Reference 提炼可迁移的设计语言；Rebuild 保存真实截图、场景、几何与验收约束。用户根据目标选择，不把“借鉴”和“复刻”混为一谈。 |
+| **只补真正缺失的状态** | 自动评估证据健康度，只生成最多 3 个滚动、悬停、焦点、展开或响应式补采任务，不要求用户从头手动录制整页。 |
+| **从捕获直接走到验收** | Rebuild Pack 自带场景清单和验收规则，可对候选实现执行截图、像素、几何、动画进度和浏览器错误检查。 |
+| **不代替用户操作页面** | 不自动点击、输入、提交表单或跳转未知页面。补采任务由用户完成真实操作，插件只观察目标状态并保存证据。 |
+| **按需注入、权限分层** | 页面桥接只在用户发起操作后注入；标准版不包含 `debugger`，深度 CDP 采集隔离在单独的 Collector 构建。 |
+
+## 不只是截图转 Prompt
+
+| 维度 | 常见截图式流程 | Design Lens |
+| --- | --- | --- |
+| 输入 | 单张或少量静态截图 | DOM 结构、Token、几何、截图、事件、动效和运行时线索 |
+| 交互状态 | 依赖人工描述或模型猜测 | 真实 hover、focus、scroll、open 和响应式场景证据 |
+| 缺失信息 | 经常被模型补全成想象结果 | 明确记录为 `missing`、`partial` 或 `not-applicable` |
+| 输出 | 一段通用 Prompt | Evidence Pack、AI Prompt Pack、Rebuild Draft Pack |
+| 验收 | 靠肉眼判断“像不像” | 基于已捕获场景的可解释候选验证报告 |
+
+## 产品预览
+
+### 1. 智能捕获与 Reference 工作区
+
+<table>
+  <tr>
+    <td width="46%" align="center">
+      <img src="docs/assets/design-lens-popup-smart-capture.png" alt="Design Lens 智能捕获结果" />
+    </td>
+    <td width="54%" align="center">
+      <img src="docs/assets/design-lens-reference-workspace.png" alt="Design Lens Reference 工作区" />
+    </td>
+  </tr>
+  <tr>
+    <td><strong>捕获结果</strong><br />保留模式切换、智能捕获、组件选取和快速导出。</td>
+    <td><strong>Reference 工作区</strong><br />集中查看证据概览、导出入口和自动生成的补充任务。</td>
+  </tr>
+</table>
+
+### 2. Rebuild 覆盖与多路由项目
 
 <p align="center">
-  <a href="#安装"><img src="https://img.shields.io/badge/version-0.1.0-111713?style=for-the-badge&labelColor=d7ff67" alt="版本 0.1.0" /></a>
-  <a href="#安装"><img src="https://img.shields.io/badge/Chrome-MV3-111713?style=for-the-badge&labelColor=6ed6ff" alt="Chrome MV3" /></a>
-  <a href="https://wxt.dev/"><img src="https://img.shields.io/badge/Built%20with-WXT-111713?style=for-the-badge&labelColor=f4f1e9" alt="Built with WXT" /></a>
-  <a href="#安装"><img src="https://img.shields.io/badge/status-alpha-111713?style=for-the-badge&labelColor=ffdd67" alt="状态 alpha" /></a>
+  <img src="docs/assets/design-lens-sidepanel-coverage.png" alt="Design Lens Rebuild 覆盖矩阵、技术线索和多路由项目" width="768" />
 </p>
 
-<p align="center">
-  <strong>中文</strong> / <a href="README.en.md">English</a>
-</p>
+Rebuild 不用一个“完成度百分比”掩盖问题。结构、样式、状态、截图、响应式和 Canvas 分开显示；候选验收未运行、Canvas 未授权等情况都会保留为明确缺口。同源页面可加入最多 8 条路由并分别验收。
 
-Design Lens 是一个面向 AI Coding / Vibe Coding 的浏览器扩展。它把正在浏览的优秀网页，转译成可复用的设计参考包：视觉 Token、布局语法、组件结构、交互时间线、动效证据、实现路线，以及可直接交给 Agent 的编码 Prompt。
+### 3. 引导式补采：用户操作，插件观察
 
-它不是源码克隆工具，而是“证据到实现”的设计转译层。无论你是刚开始用 AI 做网站，还是想让 Agent 更准确地理解高级交互、复杂动画和视觉风格，Design Lens 都能把模糊的“参考这个网站”压缩成结构化、可执行、可复用的工程上下文。
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/assets/design-lens-guided-workspace.png" alt="Design Lens Side Panel 引导补采任务" />
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/assets/design-lens-guided-capture.png" alt="Design Lens 页面内悬停状态补采" />
+    </td>
+  </tr>
+  <tr>
+    <td><strong>只下发一个清晰任务</strong><br />Side Panel 说明当前缺口和下一步动作。</td>
+    <td><strong>只观察目标状态</strong><br />用户完成真实悬停、滚动或展开后自动保存，不执行合成点击。</td>
+  </tr>
+</table>
+
+<details>
+  <summary><strong>查看 Recorder 导入与证据匹配</strong></summary>
+  <br />
+  <p align="center">
+    <img src="docs/assets/design-lens-recorder-diagnosis.png" alt="Chrome DevTools Recorder 流程导入、证据匹配与缺口诊断" width="360" />
+  </p>
+  <p>可导入脱敏后的 Chrome DevTools Recorder JSON。Design Lens 不自动重放流程，而是把步骤映射到已有截图证据，并把未闭环场景归并为最多三个补采任务。</p>
+</details>
+
+## 两种工作模式
+
+| 模式 | 适用目标 | 输出边界 |
+| --- | --- | --- |
+| **设计参照（Reference）** | 从优秀页面借鉴视觉、布局、动效或交互，构建原创界面 | 提取可迁移的设计语法，不把参考站点的品牌、内容和素材当成目标产品 |
+| **高保真重建（Rebuild）** | 在明确授权下建立可验证的实现草稿 | 只对已有截图和场景证据负责；未捕获状态始终作为缺口，不宣称已经高保真 |
+
+## 工作流程
+
+1. **打开页面**：进入普通 `http` 或 `https` 页面，点击 Design Lens。
+2. **选择目标**：Reference 用于原创设计参照；Rebuild 用于授权范围内的实现草稿。
+3. **智能捕获**：自动完成基础证据采集，页面桥接只在此类用户操作后按需注入。
+4. **检查缺口**：在 Side Panel 查看覆盖状态，只对关键缺口执行引导补采。
+5. **整理项目**：可导入 Recorder 计划，或将最多 8 条同源路由加入 Rebuild 项目。
+6. **导出与构建**：把证据包或 Prompt Pack 交给 AI Coding Agent。
+7. **候选验收**：使用 Rebuild 验证器检查已有场景，不推测未捕获行为。
+
+## 输出资料包
+
+| 资料包 | 主要文件 | 用途 |
+| --- | --- | --- |
+| **Evidence-only Pack** | `README.md`、`skill.md`、`evidence.json` | 保存、分享或交给任意 AI 工具的结构化设计证据 |
+| **AI Prompt Pack** | Evidence 文件、`ai-coding-prompt.md`、`ai-implementation-brief.md` | 使用 OpenAI 兼容模型生成面向目标项目的编码 Prompt |
+| **Rebuild Draft Pack** | `capture-project-v2.json`、`scene-manifest.json`、`acceptance.json`、截图与受限 artifact | 保存授权重建基线、显式缺口和候选实现验收规则 |
 
 ## 安装
 
-当前版本通过 Chrome 开发者模式安装，适合预览、试用和二次开发。
+环境要求：Node.js `>=22.13.0`、npm `>=10`、Chrome 或其他 Chromium 浏览器。
 
-环境要求：
-
-- Node.js `>=22.13.0`
-- npm `>=10`
-- Chrome 或其他 Chromium 浏览器
+### 标准版
 
 ```bash
-npm install
+npm ci
 npm run build
 ```
 
-然后打开 `chrome://extensions`，开启 **开发者模式**，点击 **加载已解压的扩展程序**，选择：
+打开 `chrome://extensions`，开启 **开发者模式**，点击 **加载已解压的扩展程序**，选择：
 
 ```text
 <project-root>/.output/chrome-mv3
 ```
 
-重新构建后，在同一页面点击扩展的重新加载按钮即可。
+标准版不申请 Chrome `debugger` 权限，适合日常 Reference 和基础 Rebuild 捕获。
 
-## 界面预览
-
-<table>
-  <tr>
-    <td width="33%" align="center">
-      <img src="docs/assets/design-lens-home-panel.png" alt="Design Lens 捕获完成后的首页主面板" />
-    </td>
-    <td width="33%" align="center">
-      <img src="docs/assets/design-lens-ai-settings.png" alt="Design Lens 本地 AI 服务商和 Key 配置" />
-    </td>
-    <td width="33%" align="center">
-      <img src="docs/assets/design-lens-build-brief.png" alt="Design Lens 定制生成要求和 Prompt Pack 表单" />
-    </td>
-  </tr>
-  <tr>
-    <td><strong>🎛️ 捕获完成首页</strong><br />证据强度、核心信号、当前模型和下一步操作集中在一个主链路里。</td>
-    <td><strong>🔐 模型 Key 配置</strong><br />按服务商保存 OpenAI 兼容模型 Key，支持 OpenAI、DeepSeek、Moonshot、Qwen 和自定义端点。</td>
-    <td><strong>🧭 定制生成要求</strong><br />选择网站类型、借鉴维度、技术栈和相似度，然后生成并下载 Prompt 资料包。</td>
-  </tr>
-</table>
-
-## 它解决什么
-
-| 使用场景 | 常见问题 | Design Lens 提供 |
-| --- | --- | --- |
-| AI 做首页、作品集、活动页或 SaaS 官网 | 截图只能表达表面，动效、状态、节奏和实现边界容易丢失。 | 把参考站拆成 Token、布局、组件、时间线、交互和实现建议。 |
-| 不擅长写 Prompt 的用户 | 不知道怎么描述高级 UI、鼠标特效、滚动动画和技术选型。 | 只需要补充目标网站类型，插件会组织可直接交给 AI 的 Prompt Pack。 |
-| 前端工程师和设计工程师 | 需要反复向 Agent 解释颜色、间距、hover、滚动、库选型和验收标准。 | 输出可复用 Skill 与 evidence，作为项目上下文和实现对照表。 |
-| 资深开发者做参考拆解 | 手动观察、录屏、截图、归纳实现路线成本高。 | 提供压缩后的证据层，用于快速审查、改造和交给 Agent 执行。 |
-
-## 功能亮点
-
-| 能力 | 采集内容 | 价值 |
-| --- | --- | --- |
-| 🎥 手动录制 | 滚动、悬停、鼠标轨迹、动画时序、DOM 变化、视觉表面线索和性能信号。 | 捕获真正发生在页面里的状态变化，而不只是一张静态截图。 |
-| 🧱 组件选取 | Hero、卡片、画廊、CTA、导航、价格区、媒体模块或大区块。 | 针对单个组件生成参考 Skill，适合复用到自己的页面模块里。 |
-| 🎨 设计 Token | 色彩、字体、间距、圆角、密度、对齐、布局节奏和响应式结构。 | 让 Agent 拿到具体设计语法，而不是“高级”“科技感”这类空泛形容词。 |
-| ⏱️ 交互时间线 | 指针样本、滚动样本、运行时动画、进场顺序、状态变化和重复动效模式。 | 把“丝滑交互”拆成可以实现、可以验收的阶段序列。 |
-| 🧬 实现链路 | 框架、库、资源、事件模型、运行时样式和动画/媒体实现路线线索。 | 按场景建议 GSAP、Framer Motion、Lenis、Rive、Three.js、Canvas/WebGL、CSS mask 或轻量 CSS 路线。 |
-| ✍️ AI Prompt | 合并用户目标、压缩证据、借鉴边界和输出格式。 | 生成围绕目标产品展开的编码 Prompt，而不是通用化的网站分析。 |
-
-## 产出物
-
-| 资料包 | 文件 | 适合场景 |
-| --- | --- | --- |
-| ✨ AI Prompt Pack | `README.md`、`skill.md`、`evidence.json`、`ai-coding-prompt.md`、`ai-implementation-brief.md` | 已配置模型 Key，希望立刻拿到可用编码 Prompt 和完整证据。 |
-| 🗂️ Evidence-only Pack | `README.md`、`skill.md`、`evidence.json` | 不配置 AI，先保存或分享参考证据，之后交给自己的 AI 工具。 |
-
-最快用法：如果有 AI Prompt Pack，把 `ai-coding-prompt.md`、`skill.md`、`evidence.json` 一起交给 AI Coding Agent，再补一句“为我的 SaaS 产品做原创首页”即可。
-
-如果只有 Evidence-only Pack，把 `skill.md` 和 `evidence.json` 给 AI，然后用自然语言说明你要做的网站类型和目标。
-
-## 工作流
-
-```mermaid
-flowchart TD
-  A["打开参考网站"] --> B{"选择采集范围"}
-  B --> C["录制整页流程"]
-  B --> D["选取组件或区块"]
-  C --> E["手动交互：滚动、悬停、点击、等待动画"]
-  D --> E
-  E --> F["构建证据层：Token、布局、动效、时间线、实现链路"]
-  F --> G["填写创作要求：网站类型、技术栈、借鉴维度、相似度"]
-  G --> H{"是否配置模型 Key"}
-  H -->|是| I["生成 AI Prompt Pack"]
-  H -->|否| J["导出 Evidence-only Pack"]
-  I --> K["交给 Agent 构建原创 UI"]
-  J --> K
-```
-
-## 使用方式
-
-1. 打开普通 `http` 或 `https` 网页。
-2. 点击 Design Lens 插件图标。
-3. 选择 **手动录制** 捕捉整页流程，或选择 **选取组件** 捕捉某个模块。
-4. 录制时主动滚动、悬停、点击，并等待关键动画状态出现。
-5. 如果需要插件直接生成 Prompt，再配置 OpenAI 兼容模型 Key。
-6. 填写创作要求：网站类型、目标、借鉴维度、技术栈、输出类型和相似度。
-7. 生成 **AI Prompt Pack**；不配置 AI 时导出 **Evidence-only Pack**。
-8. 把资料包交给 AI Coding Agent，用来构建原创网站或组件。
-
-## 本地开发
+### Collector 版
 
 ```bash
-npm run dev
+npm run build:collector
 ```
 
-生产构建和打包：
+加载 `<project-root>/.output/collector/chrome-mv3`。Collector 会额外申请 `debugger`，用于经授权的 DOMSnapshot、matched CSS、几何、视口和动画证据。Canvas 位图默认关闭，并受数量、像素和文件大小预算限制。
+
+## Rebuild 候选验收
 
 ```bash
-npm run build
-npm run zip
+npm run verify:rebuild -- \
+  --pack <rebuild-pack.zip> \
+  --url http://localhost:3000
 ```
 
-质量检查：
+验证器只重放 `scene-manifest.json` 中已有证据的 initial、scroll、hover、focus 和 open 状态。输出包括 JSON/HTML 报告、候选截图、差异图和供 Agent 局部修复使用的上下文。
+
+## 隐私与权限
+
+Design Lens 默认在本地处理和导出证据。只有用户配置模型 Key 并主动生成 AI 输出时，插件才发送压缩后的证据载荷；该载荷设计上排除原始 DOM、Cookie、本地存储、凭证、截图和未脱敏输入值。
+
+| 权限 | 用途 |
+| --- | --- |
+| `activeTab`、`scripting` | 用户发起操作后，向当前页面按需注入桥接并执行采集 |
+| `storage` | 在浏览器本地保存语言、主题、工作区元数据和可选 AI 配置 |
+| `tabs`、`sidePanel` | 识别当前标签页并连接持久工作区 |
+| `<all_urls>` | 允许用户在不同站点上发起捕获；不代表扩展会自动在所有页面运行 |
+| `debugger` | 仅 Collector 构建包含，用于明确授权后的受限深度采集 |
+
+本地 Rebuild 包可能包含页面可见文本、截图和脱敏后的 DOMSnapshot，应按敏感文件处理。完整边界见 [隐私与权限说明](docs/privacy.md)。
+
+## 开发与质量门禁
 
 ```bash
-npm run check
+npm run dev                 # 标准版开发服务器
+npm run dev:collector       # Collector 开发服务器
+npm run check:all           # TypeScript、78 项测试和两种生产构建
+npm run check:browser       # 20k/100k DOM 性能、停止与恢复探针
+npm run package:release     # 校验权限/版本并生成 ZIP 与 SHA256SUMS
+```
+
+浏览器门禁首次运行前执行：
+
+```bash
+npx playwright install chromium
 ```
 
 ## 项目结构
 
 ```text
-entrypoints/        WXT 扩展入口
-  background.ts     工具栏和命令连接
-  content.ts        页面内容脚本桥接
-  popup/            React 插件弹窗 UI、资料包构建与弹窗组件
-src/analyzer/       采集与分析引擎
-  capture/          页面采集、组件选取、交互和动效探测
-  core/             DOM 工具、Token 提取与设计分析
-  layout/           组件识别与布局画像
-  timeline/         录制时间线、运行时信号和模式分析
-src/ai/             提示词编译与 OpenAI 兼容客户端
-src/evidence/       共享证据包与回放式摘要
-src/generators/     导出与 Skill 生成
-  export/           原型导出相关辅助
-  skill/            页面/组件 Skill 生成与格式化规则
-src/overlay/        页面内录制与选取层
-src/shared/         Schema、语言、主题和 AI 设置
-docs/               架构、隐私、调研和截图资产
+entrypoints/        WXT background、content、popup 与 side panel 入口
+src/analyzer/       页面结构、Token、交互与动效分析
+src/capture-v2/     Rebuild 项目、CDP Collector、场景与验收契约
+src/evidence/       证据包与摘要
+src/generators/     Evidence、Prompt 与 Skill 生成器
+src/overlay/        页面内选取和引导补采控制器
+src/smart-capture/  智能捕获预算、编排和缺口任务
+src/storage/        IndexedDB 工作区与 artifact 存储
+scripts/            发布、压力探针和 Rebuild 验证工具
+tests/              行为测试
+docs/               架构、隐私、产品决策和验证记录
 ```
 
-## 信任与隐私
+## 文档与贡献
 
-Design Lens 在浏览器插件内采集参考证据。可选 AI 生成只会发送压缩后的证据载荷，设计上会排除原始 DOM、Cookie、本地存储和凭证。
-
-保存的模型服务商 Key 会按供应商配置存储在浏览器本地，并可由用户清除。
-
-## 相关文档
-
-- [隐私说明](docs/privacy.md)
 - [架构说明](docs/architecture.md)
-- [实现链路](docs/implementation-trace.md)
+- [隐私与权限](docs/privacy.md)
 - [验证记录](docs/validation.md)
+- [变更记录](CHANGELOG.md)
+- [参与贡献](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+- [发布检查清单](docs/release-checklist.md)
 
-## 鸣谢
+提交较大功能前请先创建 Issue。安全问题请通过 [GitHub Private Vulnerability Reporting](https://github.com/isla4ever/design-lens/security/advisories/new) 私下报告。
 
-- [VisBug](https://github.com/GoogleChromeLabs/ProjectVisBug)：浏览器内选择和检查体验。
-- [rrweb](https://github.com/rrweb-io/rrweb)：可回放事件流和时间线证据。
-- [Spector.js](https://github.com/BabylonJS/Spector.js)：视觉表面与 WebGL 检查思路。
-- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)：动画、CSS、DOMSnapshot 和运行时检查方向。
-- [WXT](https://wxt.dev/)：浏览器扩展开发框架。
+## License
+
+[MIT](LICENSE) © Isla

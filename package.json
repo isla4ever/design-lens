@@ -1,6 +1,6 @@
 {
   "name": "design-lens-extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A browser extension that captures design references, interaction patterns, and motion cues from live websites.",
   "type": "module",
   "engines": {
@@ -8,13 +8,26 @@
     "npm": ">=10"
   },
   "scripts": {
+    "postinstall": "wxt prepare",
     "dev": "wxt",
+    "dev:collector": "cross-env DESIGN_LENS_COLLECTOR=1 wxt",
     "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
+    "build:collector": "cross-env DESIGN_LENS_COLLECTOR=1 wxt build",
     "zip": "wxt zip",
+    "zip:collector": "cross-env DESIGN_LENS_COLLECTOR=1 wxt zip",
     "compile": "tsc --noEmit",
     "test": "tsx --test tests/*.test.mjs",
-    "check": "npm run compile && npm run test && npm run build"
+    "verify:rebuild": "tsx scripts/verify-rebuild.mjs",
+    "verify:performance": "node scripts/verify-recording-performance.mjs",
+    "verify:performance:extreme": "cross-env DESIGN_LENS_STRESS_NODES=100000 node scripts/verify-recording-performance.mjs",
+    "verify:smart-capture": "node scripts/verify-smart-capture.mjs",
+    "verify:smart-capture:extreme": "cross-env DESIGN_LENS_STRESS_NODES=100000 node scripts/verify-smart-capture.mjs",
+    "check:browser": "npm run build && npm run verify:performance && npm run verify:performance:extreme && npm run verify:smart-capture && npm run verify:smart-capture:extreme",
+    "package:release": "npm run zip && npm run zip:collector && node scripts/package-release.mjs",
+    "audit:dependencies": "npm audit --audit-level=high",
+    "check": "npm run compile && npm run test && npm run build",
+    "check:all": "npm run compile && npm run test && npm run build && npm run build:collector"
   },
   "keywords": [
     "browser-extension",
@@ -26,18 +39,33 @@
   "author": "Isla",
   "license": "MIT",
   "dependencies": {
+    "@puppeteer/replay": "^4.0.2",
     "@wxt-dev/module-react": "^1.2.2",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.3",
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "wxt": "^0.20.27"
+    "rrweb": "^2.1.0",
+    "wxt": "^0.20.27",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.11",
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
+    "cross-env": "^10.1.0",
+    "fake-indexeddb": "^6.2.5",
+    "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
+    "pngjs": "^7.0.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "esbuild": "0.28.1",
+    "shell-quote": "1.10.0",
+    "tmp": "0.2.7",
+    "uuid": "11.1.1"
   }
 }
