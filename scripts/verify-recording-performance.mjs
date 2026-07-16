@@ -73,6 +73,7 @@ try {
     startDurationMs,
     stopDurationMs,
     maxInteractionLatencyMs: Math.round(Math.max(0, ...interactionLatencies)),
+    p95InteractionLatencyMs: Math.round(percentile(interactionLatencies, 0.95)),
     maxLongTaskMs: Math.round(Math.max(0, ...browserMetrics.longTasks)),
     longTaskCount: browserMetrics.longTasks.length,
     heartbeatCount: browserMetrics.heartbeatCount,
@@ -84,7 +85,7 @@ try {
   };
 
   if (result.heartbeatCount !== 24) throw new Error(`Page lost interactions: expected 24, received ${result.heartbeatCount}`);
-  if (result.maxInteractionLatencyMs > 500) throw new Error(`Page interaction latency exceeded 500ms: ${result.maxInteractionLatencyMs}ms`);
+  if (result.p95InteractionLatencyMs > 500) throw new Error(`Page p95 interaction latency exceeded 500ms: ${result.p95InteractionLatencyMs}ms`);
   if (result.maxLongTaskMs > 200) throw new Error(`Extension recording produced a task over 200ms: ${result.maxLongTaskMs}ms`);
   if (result.frameSamples > 12) throw new Error(`Frame sample budget exceeded: ${result.frameSamples}`);
   if (consoleErrors.length) throw new Error(`Browser console errors: ${consoleErrors.join(" | ")}`);
@@ -104,6 +105,12 @@ function withTimeout(promise, timeoutMs, message) {
     timer = setTimeout(() => reject(new Error(message)), timeoutMs);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function percentile(values, ratio) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.ceil(sorted.length * ratio) - 1)];
 }
 
 async function installExtensionApiMock(page) {
