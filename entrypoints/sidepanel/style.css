@@ -7,8 +7,10 @@
 html, body, #root { margin: 0; min-height: 100%; width: 100%; }
 body { min-width: 320px; }
 button, input, select, textarea { font: inherit; }
-button { cursor: pointer; white-space: nowrap; }
+button { align-items: center; cursor: pointer; justify-content: center; line-height: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button:disabled { cursor: not-allowed; opacity: .52; }
+button svg { display: block; flex: 0 0 16px; height: 16px; width: 16px; }
 svg { height: 17px; width: 17px; }
 
 .workspace {
@@ -44,7 +46,7 @@ svg { height: 17px; width: 17px; }
 
 .workspace-header {
   align-items: center;
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  background: color-mix(in srgb, var(--bg) 96%, var(--surface));
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
@@ -57,11 +59,12 @@ svg { height: 17px; width: 17px; }
 
 .workspace-brand { align-items: center; display: flex; gap: 9px; min-width: 0; }
 .workspace-brand > div:last-child { min-width: 0; }
-.workspace-mark { align-items: center; background: var(--accent); border-radius: 6px; color: #111713; display: flex; font-size: 17px; font-weight: 950; height: 36px; justify-content: center; width: 36px; }
+.workspace-mark { align-items: center; background: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 72%, var(--line)); border-radius: 6px; color: #111713; display: flex; font-size: 17px; font-weight: 950; height: 36px; justify-content: center; width: 36px; }
 .workspace-brand h1 { font-size: 15px; line-height: 1.1; margin: 0; }
 .workspace-brand span { color: var(--muted); display: block; font-size: 10px; margin-top: 3px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-header-actions { display: flex; gap: 6px; }
-.workspace-header-actions button { align-items: center; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--text); display: flex; height: 34px; justify-content: center; padding: 0; width: 34px; }
+.workspace-header-actions button { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--text); display: flex; height: 34px; justify-content: center; min-height: 34px; padding: 0; width: 34px; }
+.workspace-header-actions button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--accent) 52%, var(--line)); }
 
 .workspace-tabs {
   background: var(--bg);
@@ -73,16 +76,24 @@ svg { height: 17px; width: 17px; }
   z-index: 9;
 }
 
-.workspace-tabs button { align-items: center; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 10px; font-weight: 800; gap: 5px; justify-content: center; min-height: 44px; min-width: 0; overflow: hidden; padding: 7px 4px 6px; }
+.workspace-tabs button { align-items: center; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); display: flex; font-size: 10px; font-weight: 800; gap: 6px; justify-content: center; min-height: 44px; min-width: 0; overflow: hidden; padding: 7px 4px 6px; }
 .workspace-tabs button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-tabs button:hover { background: color-mix(in srgb, var(--surface-2) 64%, transparent); color: var(--text); }
 .workspace-tabs button.active { border-color: var(--accent); color: var(--text); }
 .workspace-tabs button.active svg { color: var(--accent); }
 .workspace-tabs button:focus-visible, .workspace-header-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .workspace-notice { align-items: center; background: var(--accent-soft); border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); color: var(--text); display: flex; font-size: 11px; gap: 8px; justify-content: space-between; line-height: 1.35; padding: 8px 12px; }
 .workspace-notice span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.workspace-notice button { background: transparent; border: 0; color: var(--muted); font-size: 18px; height: 28px; padding: 0; width: 28px; }
+.workspace-notice button { background: transparent; border: 0; color: var(--muted); height: 28px; min-height: 28px; padding: 0; width: 28px; }
+.workspace-notice button svg { height: 15px; width: 15px; }
 .workspace-content { margin: 0 auto; max-width: 920px; padding: 14px 12px 28px; width: 100%; }
+
+.mode-selector { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; display: grid; gap: 3px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; padding: 3px; width: 100%; }
+.mode-selector button { background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--muted); font-size: 10px; font-weight: 850; min-height: 34px; padding: 6px 8px; }
+.mode-selector button:hover { background: var(--surface-2); color: var(--text); }
+.mode-selector button.active { background: var(--surface-2); border-color: color-mix(in srgb, var(--accent) 58%, var(--line)); color: var(--text); }
+.mode-selector strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .overview-layout, .coverage-layout, .settings-layout { display: grid; gap: 18px; }
 .coverage-secondary { display: grid; gap: 0; min-width: 0; }
@@ -107,6 +118,8 @@ svg { height: 17px; width: 17px; }
 .workspace-primary { background: var(--accent); border: 1px solid var(--accent); color: #111713; }
 .workspace-secondary { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 .workspace-stop { background: var(--danger); border: 1px solid var(--danger); color: #170706; }
+.workspace-primary:hover { filter: brightness(1.04); }
+.workspace-secondary:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--info) 45%, var(--line)); }
 .workspace-action-grid .workspace-primary { grid-column: 1 / -1; }
 .inline-command { align-items: center; background: transparent; border: 0; color: var(--info); display: flex; font-size: 10px; gap: 6px; margin-top: 10px; min-height: 32px; padding: 4px 0; }
 .historical-context { align-items: center; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 10px; gap: 10px; justify-content: space-between; line-height: 1.35; margin-top: 10px; padding-top: 10px; }
@@ -123,10 +136,11 @@ svg { height: 17px; width: 17px; }
 .workspace-task strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-task span, .quiet-state, .workspace-placeholder { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.workspace-empty { align-items: center; display: grid; gap: 10px; justify-items: center; min-height: 280px; text-align: center; }
+.workspace-empty { align-content: center; align-items: center; display: grid; gap: 14px; justify-items: center; min-height: 280px; text-align: center; }
 .workspace-empty > svg { color: var(--accent); height: 28px; width: 28px; }
 .workspace-empty h2 { font-size: 15px; margin: 0; }
 .workspace-empty .workspace-primary { align-items: center; border-radius: 6px; display: flex; gap: 7px; min-height: 42px; padding: 8px 14px; }
+.workspace-empty .mode-selector { margin: 2px 0 0; max-width: 320px; }
 
 .evidence-health, .rebuild-coverage { border-block: 1px solid var(--line); display: grid; gap: 8px; padding: 11px 0; }
 .health-head { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
@@ -241,7 +255,7 @@ svg { height: 17px; width: 17px; }
 .ai-badge { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; padding: 5px 7px; }
 .ai-badge.saved { border-color: var(--accent); color: var(--accent-strong); }
 .key-row { display: grid; gap: 6px; grid-template-columns: 1fr 58px; }
-.key-reveal, .clear-ai, .save-ai { border-radius: 6px; font-size: 10px; min-height: 38px; padding: 7px 8px; }
+.key-reveal, .clear-ai, .save-ai { align-items: center; border-radius: 6px; display: inline-flex; font-size: 10px; gap: 6px; justify-content: center; min-height: 38px; padding: 7px 8px; }
 .key-reveal { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 .ai-provider-note { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: 9px; line-height: 1.4; margin: 0; padding: 8px; }
 .ai-menu-footer { align-items: center; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: space-between; padding-top: 9px; }
@@ -260,8 +274,7 @@ svg { height: 17px; width: 17px; }
 }
 
 @media (max-width: 359px) {
-  .workspace-tabs button { gap: 0; }
-  .workspace-tabs button span { display: none; }
+  .workspace-tabs button { font-size: 9px; gap: 4px; }
   .workspace-tabs svg { height: 14px; width: 14px; }
   .workspace-brand span { max-width: 150px; }
   .intent-row, .ai-field-grid { grid-template-columns: 1fr; }

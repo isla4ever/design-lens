@@ -13,6 +13,8 @@ const captureVisibleTabQueue = createCaptureVisibleTabQueue();
 export default defineBackground(() => {
   const store = new CaptureProjectStore();
 
+  void configureDefaultSurface();
+
   browser.commands.onCommand.addListener(async (command) => {
     if (command !== "capture-selection") return;
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -56,6 +58,16 @@ export default defineBackground(() => {
     return undefined;
   });
 });
+
+async function configureDefaultSurface() {
+  try {
+    await browser.action.setPopup({ popup: "" });
+    if (!browser.sidePanel?.setPanelBehavior) throw new Error("Side Panel behavior is unavailable");
+    await browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch {
+    await browser.action.setPopup({ popup: "popup.html" }).catch(() => undefined);
+  }
+}
 
 async function storeWorkspaceCapture(
   message: Extract<WorkspaceRequest, { type: "DESIGN_LENS_STORE_WORKSPACE_CAPTURE" }>,

@@ -38,17 +38,17 @@ export function ResultPanel({ capture, locale, isBusy, hasAiKey, brief, lastPack
       <div className={lastPackKind ? "export-row completed" : isRebuild || hasAiKey ? "export-row single" : "export-row needs-key"}>
         <button className="ai-brief-action primary-pack" type="button" onClick={onGenerate} disabled={isBusy}>
           {isBusy ? <RefreshCw aria-hidden="true" /> : needsRebuildAuthorization ? <Settings2 aria-hidden="true" /> : isRebuild ? <Archive aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
-          {isRebuild
+          <span>{isRebuild
             ? needsRebuildAuthorization ? (locale === "zh" ? "确认重建范围" : "Confirm rebuild scope") : (locale === "zh" ? "导出重建草稿" : "Export rebuild draft")
-            : hasAiKey ? (locale === "zh" ? "生成 Prompt 包" : "Generate prompt pack") : (locale === "zh" ? "配置 AI" : "Configure AI")}
+            : hasAiKey ? (locale === "zh" ? "生成 Prompt 包" : "Generate prompt pack") : (locale === "zh" ? "配置 AI" : "Configure AI")}</span>
         </button>
-        {!isRebuild && !hasAiKey ? <button className="bundle-action evidence-only-action" type="button" onClick={onExportEvidence} disabled={isBusy}><Archive aria-hidden="true" />{locale === "zh" ? "导出资料包" : "Export evidence"}</button> : null}
-        {lastPackKind ? <button className="bundle-action" type="button" onClick={onDownloadPack} disabled={isBusy}><Archive aria-hidden="true" />{locale === "zh" ? "重新下载" : "Download again"}</button> : null}
+        {!isRebuild && !hasAiKey ? <button className="bundle-action evidence-only-action" type="button" onClick={onExportEvidence} disabled={isBusy}><Archive aria-hidden="true" /><span>{locale === "zh" ? "导出资料包" : "Export evidence"}</span></button> : null}
+        {lastPackKind ? <button className="bundle-action" type="button" onClick={onDownloadPack} disabled={isBusy}><Archive aria-hidden="true" /><span>{locale === "zh" ? "重新下载" : "Download again"}</span></button> : null}
       </div>
 
       <div className="result-secondary-actions">
-        <button className="improve-coverage-action" type="button" onClick={onImproveCoverage} disabled={isBusy}><ScanSearch aria-hidden="true" />{locale === "zh" ? `补缺口${taskCount ? ` (${taskCount})` : ""}` : `Fill gaps${taskCount ? ` (${taskCount})` : ""}`}</button>
-        <button className="open-workspace-action" type="button" onClick={onOpenWorkspace}><PanelRightOpen aria-hidden="true" />{locale === "zh" ? "工作区" : "Workspace"}</button>
+        <button className="improve-coverage-action" type="button" onClick={onImproveCoverage} disabled={isBusy}><ScanSearch aria-hidden="true" /><span>{locale === "zh" ? `补缺口${taskCount ? ` (${taskCount})` : ""}` : `Fill gaps${taskCount ? ` (${taskCount})` : ""}`}</span></button>
+        <button className="open-workspace-action" type="button" onClick={onOpenWorkspace}><PanelRightOpen aria-hidden="true" /><span>{locale === "zh" ? "工作区" : "Workspace"}</span></button>
       </div>
     </section>
   );

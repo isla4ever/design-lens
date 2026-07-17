@@ -22,6 +22,10 @@ export default defineConfig({
   hooks: {
     "build:manifestGenerated": (_wxt, manifest) => {
       if (!manifest.content_scripts?.length) delete manifest.content_scripts;
+      if (manifest.action) {
+        delete manifest.action.default_popup;
+        manifest.action.default_title = isCollectorBuild ? "Open Design Lens Collector" : "Open Design Lens";
+      }
     }
   }
 });

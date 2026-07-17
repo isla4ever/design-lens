@@ -40,6 +40,16 @@ The recording-level probe captured:
 
 `npm run check:all` remains the required project gate.
 
+## Extension UI Probe
+
+`npm run verify:ui` loads the production extension in isolated Chromium and
+renders the compact view, Side Panel overview, and Side Panel settings in
+Chinese and English, light and dark themes, and widths from 320px to 380px. It
+fails on horizontal overflow, wrapping button labels, unnamed controls,
+off-center button icons, console errors, or a Manifest that still binds the
+toolbar action to `default_popup`. Screenshots are written to
+`output/playwright/extension-ui/` for visual review.
+
 ## Real-Site Rebuild Benchmark
 
 The 2026-07-17 AstroWind benchmark exercises the real unpacked Collector,

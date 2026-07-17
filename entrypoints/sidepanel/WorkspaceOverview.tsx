@@ -1,12 +1,15 @@
 import React from "react";
 import { Archive, Crosshair, RefreshCw, ScanSearch, Settings2, Square } from "lucide-react";
 import { formatSmartCaptureOutcome, formatSmartCaptureTask } from "../../src/smart-capture/presentation";
+import type { CaptureMode } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
 import type { DesignCapture } from "../../src/shared/schema";
 import type { SmartCaptureTask } from "../../src/smart-capture/types";
+import { CaptureModeSelector } from "../popup/CaptureModeSelector";
 
-export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, isBusy, isRecording, hasAiKey, isCurrentResult, onCapture, onStop, onImprove, onExport, onOpenSettings, onShowCurrent }: {
+export function WorkspaceOverview({ capture, captureMode, tasks, recorderGapCount, locale, isBusy, isRecording, hasAiKey, isCurrentResult, onModeChange, onCapture, onStop, onImprove, onExport, onOpenSettings, onShowCurrent }: {
   capture: DesignCapture | null;
+  captureMode: CaptureMode;
   tasks: SmartCaptureTask[];
   recorderGapCount: number;
   locale: Locale;
@@ -14,6 +17,7 @@ export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, is
   isRecording: boolean;
   hasAiKey: boolean;
   isCurrentResult: boolean;
+  onModeChange: (mode: CaptureMode) => void;
   onCapture: () => void;
   onStop: () => void;
   onImprove: () => void;
@@ -27,6 +31,7 @@ export function WorkspaceOverview({ capture, tasks, recorderGapCount, locale, is
       <section className="workspace-empty" aria-labelledby="workspace-empty-title">
         <ScanSearch aria-hidden="true" />
         <h2 id="workspace-empty-title">{zh ? "当前标签页尚未捕获" : "No capture for this tab"}</h2>
+        <CaptureModeSelector mode={captureMode} locale={locale} disabled={isBusy} onChange={onModeChange} />
         <button className="workspace-primary" type="button" onClick={onCapture} disabled={isBusy}>
           <ScanSearch aria-hidden="true" />{zh ? "智能捕获" : "Smart Capture"}
         </button>

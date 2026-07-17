@@ -26,6 +26,7 @@ It is not a source downloader, and it never turns missing states into a claim of
 | Highlight | How Design Lens handles it |
 | --- | --- |
 | **One action for baseline capture** | Smart Capture shares a 15-second budget across preflight indexing, stabilization, and passive observation. Rebuild screenshot and CDP finalization use separate timeouts and circuit breakers, while large or continuously mutating pages degrade safely. |
+| **Full Side Panel by default** | Clicking the extension action opens the Side Panel, where mode, capture, coverage, history, and settings share one workspace. The compact view remains available for quick actions and as an automatic fallback on older Chromium builds. |
 | **Reference and Rebuild are separate modes** | Reference extracts transferable design language. Rebuild preserves real screenshots, scenes, geometry, and acceptance constraints. The product never conflates inspiration with reproduction. |
 | **Capture only what is missing** | Evidence health produces at most three scroll, hover, focus, open, or responsive tasks instead of making users manually record the entire page first. |
 | **Capture-to-acceptance workflow** | Rebuild Packs carry scene manifests and acceptance rules for screenshot, pixel, geometry, motion-checkpoint, and browser-error checks. |
@@ -51,14 +52,14 @@ It is not a source downloader, and it never turns missing states into a claim of
 <table>
   <tr>
     <td width="46%" align="center">
-      <img src="docs/assets/design-lens-popup-smart-capture.png" alt="Design Lens Smart Capture result" />
+      <img src="docs/assets/design-lens-popup-smart-capture.png" alt="Design Lens compact Smart Capture result" />
     </td>
     <td width="54%" align="center">
       <img src="docs/assets/design-lens-reference-workspace.png" alt="Design Lens Reference workspace" />
     </td>
   </tr>
   <tr>
-    <td><strong>Capture result</strong><br />Keeps only mode, Smart Capture, component picking, and export; detailed briefs live in the workspace.</td>
+    <td><strong>Compact view</strong><br />Keeps only mode, Smart Capture, component picking, and export; detailed briefs live in the Side Panel.</td>
     <td><strong>Reference workspace</strong><br />Centralizes evidence, export, and generated follow-up tasks without duplicate actions.</td>
   </tr>
 </table>
@@ -70,6 +71,14 @@ It is not a source downloader, and it never turns missing states into a claim of
 </p>
 
 Rebuild does not hide uncertainty behind a single completion score. Structure, style, state, screenshot, responsive, and Canvas evidence are reported separately; technical signals and Recorder stay collapsed until needed. A project can contain up to eight same-origin routes for per-route verification.
+
+<details>
+  <summary><strong>View Side Panel settings</strong></summary>
+  <br />
+  <p align="center">
+    <img src="docs/assets/design-lens-sidepanel-settings.png" alt="Design Lens Side Panel mode, reference brief, and AI settings" width="360" />
+  </p>
+</details>
 
 ### 3. Guided Capture: The User Acts, The Extension Observes
 
@@ -106,7 +115,7 @@ Rebuild does not hide uncertainty behind a single completion score. Structure, s
 
 ## Workflow
 
-1. **Open a page**: visit a normal `http` or `https` page and click Design Lens.
+1. **Open a page**: visit a normal `http` or `https` page and click Design Lens; the Side Panel opens by default.
 2. **Choose the outcome**: use Reference for original design direction or Rebuild for an authorized implementation draft.
 3. **Run Smart Capture**: collect baseline evidence; the page bridge is injected on demand only after this kind of user action.
 4. **Review gaps**: use the Side Panel and complete guided capture only for important missing states.
@@ -181,7 +190,7 @@ Local Rebuild packs may contain visible page text, screenshots, and sanitized DO
 npm run dev                 # Standard development server
 npm run dev:collector       # Collector development server
 npm run check:all           # TypeScript, 84 tests, and both production builds
-npm run check:browser       # Real MV3 injection plus 20k/100k DOM performance and recovery probes
+npm run check:browser       # Real MV3 injection, UI alignment/overflow, and 20k/100k DOM recovery probes
 npm run package:release     # Permission/version validation, ZIPs, and SHA256SUMS
 ```
 

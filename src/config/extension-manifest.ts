@@ -9,8 +9,7 @@ export function buildExtensionManifest(mode: string) {
     permissions: ["activeTab", "scripting", "storage", "tabs", "sidePanel", ...(isCollector ? ["debugger"] : [])],
     host_permissions: ["<all_urls>"],
     action: {
-      default_title: isCollector ? "Analyze with Design Lens Collector" : "Analyze with Design Lens",
-      default_popup: "popup.html"
+      default_title: isCollector ? "Open Design Lens Collector" : "Open Design Lens"
     },
     side_panel: {
       default_path: "sidepanel.html"

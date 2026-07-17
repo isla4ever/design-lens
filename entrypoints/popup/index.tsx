@@ -39,7 +39,7 @@ function Popup() {
   const t = messages[locale];
 
   const localizedCapture = useMemo(() => (capture ? withLocalizedAnalysis(capture, locale) : null), [capture, locale]);
-  const themeLabel = useMemo(() => (theme === "light" ? t.lightTheme : t.darkTheme), [theme, t.darkTheme, t.lightTheme]);
+  const themeLabel = useMemo(() => (theme === "light" ? t.darkTheme : t.lightTheme), [theme, t.darkTheme, t.lightTheme]);
   const activeAiProfile = useMemo(() => getActiveAiProfile(aiSettingsState), [aiSettingsState]);
   const isBusy = status === "loading" || status === "generating";
   const hasAiKey = Boolean(activeAiProfile.apiKey.trim());
@@ -238,7 +238,7 @@ function Popup() {
 
   async function openWorkspace(view: SidePanelView = "overview") {
     try {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      const tab = await resolvePopupTargetTab();
       if (!tab?.id) throw new Error(locale === "zh" ? "当前标签页不可用。" : "The current tab is unavailable.");
       await browser.storage.local.set({ [SIDE_PANEL_VIEW_KEY]: view });
       await browser.sidePanel.open({ tabId: tab.id });
@@ -361,7 +361,7 @@ function Popup() {
             </div>
           ) : null}
           <button className="icon-button theme-toggle" type="button" aria-label={themeLabel} onClick={() => toggleTheme()} disabled={isBusy}>
-            {theme === "light" ? <SunMedium aria-hidden="true" /> : <MoonStar aria-hidden="true" />}
+            {theme === "light" ? <MoonStar aria-hidden="true" /> : <SunMedium aria-hidden="true" />}
           </button>
           <button className="icon-button" type="button" aria-label={locale === "zh" ? "打开工作区" : "Open workspace"} title={locale === "zh" ? "打开工作区" : "Open workspace"} onClick={() => void openWorkspace()} disabled={isBusy}>
             <PanelRightOpen aria-hidden="true" />
@@ -374,11 +374,11 @@ function Popup() {
       <section className="command-surface">
         <button className={status === "recording" ? "primary-action recording" : "primary-action"} onClick={requestSmartCapture} disabled={isBusy}>
           {status === "loading" ? <RefreshCw aria-hidden="true" /> : <ScanSearch aria-hidden="true" />}
-          {status === "recording" ? (locale === "zh" ? "停止捕获" : "Stop capture") : designBrief.mode === "rebuild" ? (locale === "zh" ? isCollectorBuild ? "深度捕获" : "智能重建" : isCollectorBuild ? "Deep capture" : "Smart rebuild") : t.primaryAction}
+          <span>{status === "recording" ? (locale === "zh" ? "停止捕获" : "Stop capture") : designBrief.mode === "rebuild" ? (locale === "zh" ? isCollectorBuild ? "深度捕获" : "智能重建" : isCollectorBuild ? "Deep capture" : "Smart rebuild") : t.primaryAction}</span>
         </button>
         <button className="secondary-action" onClick={requestSectionPick} disabled={isBusy || status === "recording"}>
           <Crosshair aria-hidden="true" />
-          {locale === "zh" ? "选取组件" : "Pick component"}
+          <span>{locale === "zh" ? "选取组件" : "Pick component"}</span>
         </button>
       </section>
 
@@ -394,7 +394,7 @@ function Popup() {
           </button>
           <button className="authorization-confirm" type="button" onClick={() => void confirmRebuildAuthorization()}>
             <ShieldCheck aria-hidden="true" />
-            {locale === "zh" ? "确认并继续" : "Confirm and continue"}
+            <span>{locale === "zh" ? "确认并继续" : "Confirm and continue"}</span>
           </button>
         </section>
       ) : null}
@@ -423,7 +423,7 @@ function Popup() {
 }
 
 async function ensureContentScript(shouldInject = true) {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  const tab = await resolvePopupTargetTab();
   if (!tab?.id || !isInjectableUrl(tab.url)) {
     if (shouldInject) throw new Error(messages[DEFAULT_LOCALE].normalPageOnly);
     return null;
@@ -434,6 +434,17 @@ async function ensureContentScript(shouldInject = true) {
   await ensureDesignLensPageBridge(tab.id, await getStoredLocale());
 
   return tab.id;
+}
+
+async function resolvePopupTargetTab() {
+  const value = new URLSearchParams(window.location.search).get("targetTabId");
+  const targetTabId = value && /^\d+$/.test(value) ? Number(value) : undefined;
+  if (targetTabId !== undefined) {
+    const target = await browser.tabs.get(targetTabId).catch(() => undefined);
+    if (target) return target;
+  }
+  const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+  return activeTab;
 }
 
 async function syncActiveTab(message: unknown) {

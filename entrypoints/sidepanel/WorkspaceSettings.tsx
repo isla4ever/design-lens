@@ -4,6 +4,7 @@ import type { AiProviderProfile, AiSettingsState } from "../../src/shared/ai-set
 import type { DesignBrief } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
 import { AiSettingsMenu } from "../popup/AiSettingsMenu";
+import { CaptureModeSelector } from "../popup/CaptureModeSelector";
 import { IntentBriefPanel } from "../popup/IntentBriefPanel";
 
 export function WorkspaceSettings({ locale, brief, aiSettings, onSaveBrief, onSaveAi, onClearAi }: {
@@ -21,6 +22,7 @@ export function WorkspaceSettings({ locale, brief, aiSettings, onSaveBrief, onSa
     <div className="settings-layout">
       <section className="workspace-section" aria-labelledby="capture-settings-title">
         <div className="section-heading"><div><span>{zh ? "范围" : "Scope"}</span><h2 id="capture-settings-title">{zh ? "捕获与导出要求" : "Capture and export brief"}</h2></div></div>
+        <CaptureModeSelector mode={draft.mode} locale={locale} disabled={false} onChange={(mode) => setDraft({ ...draft, mode })} />
         <IntentBriefPanel locale={locale} brief={draft} onChange={setDraft} />
         <button className="workspace-primary save-brief" type="button" onClick={() => onSaveBrief(draft)}><Save aria-hidden="true" />{zh ? "保存要求" : "Save brief"}</button>
       </section>

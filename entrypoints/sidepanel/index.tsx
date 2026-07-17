@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Clock3, Languages, LayoutDashboard, ListChecks, MoonStar, RefreshCw, Settings2, SunMedium } from "lucide-react";
+import { AppWindow, Clock3, Languages, LayoutDashboard, ListChecks, MoonStar, RefreshCw, Settings2, SunMedium, X } from "lucide-react";
 import { buildAiAnalysisPayload, buildAiPrompt } from "../../src/ai/context";
 import { generateAiDesignAnalysis } from "../../src/ai/openai";
 import { withLocalizedAnalysis } from "../../src/analyzer/core/analysis";
@@ -280,6 +280,30 @@ function SidePanel() {
     setNotice(locale === "zh" ? "捕获要求已保存" : "Capture brief saved");
   }
 
+  async function changeCaptureMode(mode: DesignBrief["mode"]) {
+    if (isBusy || mode === brief.mode) return;
+    const next = normalizeDesignBrief({ ...brief, mode });
+    setBrief(next);
+    await setStoredDesignBrief(next);
+    setNotice(locale === "zh"
+      ? mode === "reference" ? "已切换为设计参照" : "已切换为高保真重建"
+      : mode === "reference" ? "Switched to Reference" : "Switched to Rebuild");
+  }
+
+  async function openCompactView() {
+    try {
+      if (activeTabId === null) throw new Error(locale === "zh" ? "当前标签页不可用。" : "The current tab is unavailable.");
+      await browser.windows.create({
+        url: browser.runtime.getURL(`/popup.html?targetTabId=${activeTabId}`),
+        type: "popup",
+        width: 400,
+        height: 640
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   async function saveAi(profile: AiProviderProfile) {
     const next = upsertAiProfile(aiSettings, { ...profile, updatedAt: new Date().toISOString() });
     setAiSettings(next);
@@ -409,6 +433,7 @@ function SidePanel() {
       <header className="workspace-header">
         <div className="workspace-brand"><div className="workspace-mark">D</div><div><h1>Design Lens</h1><span>{capture ? captureHost(capture.page.url) : locale === "zh" ? "捕获工作区" : "Capture workspace"}</span></div></div>
         <div className="workspace-header-actions">
+          <button type="button" aria-label={locale === "zh" ? "打开紧凑视图" : "Open compact view"} title={locale === "zh" ? "紧凑视图" : "Compact view"} onClick={() => void openCompactView()}><AppWindow aria-hidden="true" /></button>
           <button type="button" aria-label={locale === "zh" ? "English" : "中文"} onClick={() => void toggleLocale()}><Languages aria-hidden="true" /></button>
           <button type="button" aria-label={theme === "light" ? (locale === "zh" ? "深色模式" : "Dark mode") : (locale === "zh" ? "浅色模式" : "Light mode")} onClick={() => void toggleTheme()}>{theme === "light" ? <MoonStar aria-hidden="true" /> : <SunMedium aria-hidden="true" />}</button>
         </div>
@@ -421,10 +446,10 @@ function SidePanel() {
         <TabButton view="settings" active={activeView} locale={locale} icon={<Settings2 aria-hidden="true" />} onChange={setActiveView} />
       </nav>
 
-      {notice ? <div className="workspace-notice" role="status"><span>{notice}</span><button type="button" aria-label={locale === "zh" ? "清除状态" : "Dismiss status"} onClick={() => setNotice("")}>×</button></div> : null}
+      {notice ? <div className="workspace-notice" role="status"><span>{notice}</span><button type="button" aria-label={locale === "zh" ? "清除状态" : "Dismiss status"} onClick={() => setNotice("")}><X aria-hidden="true" /></button></div> : null}
 
       <div className="workspace-content">
-        {activeView === "overview" ? <WorkspaceOverview capture={capture} tasks={supplementalTasks} recorderGapCount={(selectedRecord?.recorderFlowMatch?.counts.partial ?? 0) + (selectedRecord?.recorderFlowMatch?.counts.missing ?? 0)} locale={locale} isBusy={isBusy} isRecording={isRecording} hasAiKey={hasAiKey} isCurrentResult={Boolean(selectedRecord && currentTabRecord?.id === selectedRecord.id)} onCapture={() => void startSmartCapture()} onStop={() => void stopCapture()} onImprove={() => void resolveNextSupplementalTask()} onExport={() => void exportSelectedCapture()} onOpenSettings={() => setActiveView("settings")} onShowCurrent={() => setSelectedId(currentTabRecord?.id ?? null)} /> : null}
+        {activeView === "overview" ? <WorkspaceOverview capture={capture} captureMode={brief.mode} tasks={supplementalTasks} recorderGapCount={(selectedRecord?.recorderFlowMatch?.counts.partial ?? 0) + (selectedRecord?.recorderFlowMatch?.counts.missing ?? 0)} locale={locale} isBusy={isBusy} isRecording={isRecording} hasAiKey={hasAiKey} isCurrentResult={Boolean(selectedRecord && currentTabRecord?.id === selectedRecord.id)} onModeChange={(mode) => void changeCaptureMode(mode)} onCapture={() => void startSmartCapture()} onStop={() => void stopCapture()} onImprove={() => void resolveNextSupplementalTask()} onExport={() => void exportSelectedCapture()} onOpenSettings={() => setActiveView("settings")} onShowCurrent={() => setSelectedId(currentTabRecord?.id ?? null)} /> : null}
         {activeView === "coverage" ? <WorkspaceCoverage capture={capture} locale={locale} isBusy={isBusy} routeProject={routeProject} recorderFlow={selectedRecord?.recorderFlow} recorderFlowMatch={selectedRecord?.recorderFlowMatch} canEditCurrentRoute={canEditCurrentRoute} onAddRoute={() => void addCurrentRoute()} onRemoveRoute={(id) => void removeProjectRoute(id)} onExportRouteProject={() => void exportRouteProject()} onStartNewRouteProject={() => void startNewRouteProject()} onImportRecorderFlow={(file) => void importRecorderFlow(file)} onClearRecorderFlow={() => void clearRecorderFlow()} /> : null}
         {activeView === "history" ? <WorkspaceHistory records={records} selectedId={selectedId} locale={locale} onSelect={(id) => { setSelectedId(id); setActiveView("overview"); }} onDelete={(id) => void deleteHistory(id)} /> : null}
         {activeView === "settings" ? <WorkspaceSettings locale={locale} brief={settingsBrief} aiSettings={aiSettings} onSaveBrief={(next) => void saveBrief(next)} onSaveAi={(profile) => void saveAi(profile)} onClearAi={(id) => void clearAi(id)} /> : null}
