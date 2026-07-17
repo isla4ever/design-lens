@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildScrollCapturePositions, collectSceneScreenshots } from "../src/capture-v2/browser/scene-screenshot-collector.ts";
+import { createCaptureVisibleTabQueue } from "../src/capture-v2/browser/capture-visible-tab-queue.ts";
 import { RrwebEventBuffer } from "../src/capture-v2/rrweb/rrweb-event-buffer.ts";
 import { setScreenshotPrivacyMask } from "../src/capture-v2/browser/screenshot-privacy-mask.ts";
 
@@ -41,14 +42,80 @@ test("rrweb event buffer trips the mutation circuit breaker before accepting an 
   assert.equal(snapshot.events.at(-1).timestamp, 3);
 });
 
-test("scroll position planning includes page edges and caps very long pages", () => {
+test("scroll position planning continuously covers typical long pages and caps extreme pages", () => {
   assert.deepEqual(buildScrollCapturePositions(0, 800), [0]);
   assert.deepEqual(buildScrollCapturePositions(1600, 800), [0, 800, 1600]);
+  assert.deepEqual(buildScrollCapturePositions(8065, 900), [0, 900, 1800, 2700, 3600, 4500, 5400, 6300, 7200, 8065]);
   const capped = buildScrollCapturePositions(20_000, 500, 5);
   assert.equal(capped.length, 5);
   assert.equal(capped[0], 0);
   assert.equal(capped.at(-1), 20_000);
-  assert.equal(buildScrollCapturePositions(20_000, 500).length, 5);
+  assert.equal(buildScrollCapturePositions(20_000, 500).length, 12);
+});
+
+test("visible-tab screenshot queue serializes captures and respects the Chrome quota interval", async () => {
+  let now = 1_000;
+  const waits = [];
+  const events = [];
+  const queue = createCaptureVisibleTabQueue(550, () => now, async (durationMs) => {
+    waits.push(durationMs);
+    now += durationMs;
+  });
+  const first = queue.run(async () => { events.push(`first:${now}`); return "first"; });
+  const second = queue.run(async () => { events.push(`second:${now}`); return "second"; });
+  const third = queue.run(async () => { events.push(`third:${now}`); return "third"; });
+
+  assert.deepEqual(await Promise.all([first, second, third]), ["first", "second", "third"]);
+  assert.deepEqual(events, ["first:1000", "second:1550", "third:2100"]);
+  assert.deepEqual(waits, [550, 550]);
+});
+
+test("scene screenshot collection stops at its total duration budget", async () => {
+  const originalNow = Date.now;
+  let now = 0;
+  Date.now = () => now;
+  const win = {
+    innerWidth: 1200,
+    innerHeight: 800,
+    devicePixelRatio: 1,
+    scrollX: 0,
+    scrollY: 0,
+    scrollTo(x, y) { this.scrollX = x; this.scrollY = y; },
+    requestAnimationFrame(callback) { callback(0); return 1; }
+  };
+  const element = {
+    style: { scrollBehavior: "smooth" },
+    scrollWidth: 1200,
+    offsetWidth: 1200,
+    clientWidth: 1200,
+    scrollHeight: 3200,
+    offsetHeight: 3200,
+    clientHeight: 800
+  };
+
+  try {
+    const result = await collectSceneScreenshots({
+      win,
+      doc: { documentElement: element, body: null },
+      recordingId: "duration-budget",
+      storageProjectId: "duration-budget",
+      phase: "page-baseline",
+      positions: [0, 800, 1600, 2400],
+      maxDurationMs: 100,
+      settle: async () => {},
+      captureVisibleTab: async (request) => {
+        now += 60;
+        return { id: request.artifactId, kind: "screenshot", name: request.name, mediaType: "image/png", size: 4, createdAt: request.createdAt };
+      }
+    });
+
+    assert.equal(result.scenes.length, 2);
+    assert.equal(result.truncated, true);
+    assert.equal(win.scrollY, 0);
+    assert.equal(element.style.scrollBehavior, "smooth");
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("scene screenshot collection restores scroll, CSS behavior, and capture UI", async () => {
@@ -149,6 +216,7 @@ test("scene screenshot collection restores the page after capture failure", asyn
 
   assert.equal(result.scenes[0].status, "failed");
   assert.match(result.scenes[0].error, /capture denied/);
+  assert.equal(result.truncated, true);
   assert.equal(win.scrollY, 75);
   assert.equal(element.style.scrollBehavior, "smooth");
 });

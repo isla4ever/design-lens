@@ -40,6 +40,16 @@ The recording-level probe captured:
 
 `npm run check:all` remains the required project gate.
 
+## Real-Site Rebuild Benchmark
+
+The 2026-07-17 AstroWind benchmark exercises the real unpacked Collector,
+continuous long-page screenshots, desktop/mobile CDP scenes, export, oracle
+calibration, and an evidence-only candidate implementation. It found and
+regressed injection, screenshot quota, CDP capability, scroll restoration,
+export-scope, and acceptance-policy bugs. See
+[AstroWind 自动重建实战](astrowind-rebuild-benchmark.md) for the measurements and
+remaining fidelity gaps.
+
 ## Recording Performance Probe
 
 `npm run verify:performance` loads the production content-script bundle in an
@@ -66,8 +76,8 @@ Last local results:
 
 | DOM nodes | Start | Stop | P95 interaction | Max round-trip | Baseline task | Recording task | Heavy frames |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 20,000 | 1,164ms | 199ms | 50ms | 57ms | 0ms | 52ms | 2 |
-| 100,000 | 93ms | 105ms | 126ms | 131ms | 66ms | 92ms | 0 |
+| 20,000 | 783ms | 178ms | 37ms | 39ms | 0ms | 52ms | 2 |
+| 100,000 | 92ms | 80ms | 119ms | 149ms | 64ms | 90ms | 0 |
 
 Both runs received all 24 heartbeat interactions and completed without console
 errors. Exact timings vary by machine; the assertions above are the release gate.
@@ -92,13 +102,13 @@ The 2026-07-16 candidate was verified with Node.js 22.23.1 after deleting
 WXT types before TypeScript compilation, reproducing the order used by CI.
 
 - Dependency audit: 0 vulnerabilities.
-- Automated tests: 78 passed, 0 failed.
+- Automated tests: 84 passed, 0 failed.
 - Standard and Collector production builds: passed.
 - Standard and Collector ZIP permission/version validation: passed.
 - SHA-256 verification for both release archives: passed.
-- 100,000-node Smart Capture: 130ms start response, 125ms bounded run, 102ms
-  p95 interaction latency, 105ms maximum driver round-trip, 65ms fixture
-  baseline and 126ms maximum recording task, all 24 heartbeat actions received,
+- 100,000-node Smart Capture: 128ms start response, 123ms bounded run, 101ms
+  p95 interaction latency, 102ms maximum driver round-trip, 64ms fixture
+  baseline and 123ms maximum recording task, all 24 heartbeat actions received,
   and no console errors.
 - User stop: the sample count remained unchanged after the 300ms post-stop
   window; the extreme-DOM path remained at zero samples.

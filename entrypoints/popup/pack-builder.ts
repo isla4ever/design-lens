@@ -33,7 +33,17 @@ export function buildRebuildDraftPackFiles(capture: DesignCapture, brief: Design
   const hasRrweb = Boolean(capture.rebuildEvidence?.rrweb);
   const hasScreenshots = Boolean(capture.rebuildEvidence?.scenes.some((scene) => scene.status === "captured" && scene.screenshotArtifactId));
   const hasDeepEvidence = Boolean(capture.rebuildEvidence?.deepCollector);
-  const briefRequestedScenes = brief.rebuild.viewports.flatMap((viewport) => brief.rebuild.states.map((state) => {
+  const requestedViewports = capture.rebuildEvidence?.request?.viewports?.length
+    ? capture.rebuildEvidence.request.viewports
+    : brief.rebuild.viewports;
+  const requestedStates = capture.rebuildEvidence?.request?.states?.length
+    ? capture.rebuildEvidence.request.states
+    : brief.rebuild.states;
+  const effectiveBrief: DesignBrief = {
+    ...brief,
+    rebuild: { ...brief.rebuild, viewports: requestedViewports.slice(), states: requestedStates.slice() }
+  };
+  const briefRequestedScenes = requestedViewports.flatMap((viewport) => requestedStates.map((state) => {
     const evidenceScenes = (capture.rebuildEvidence?.scenes ?? []).filter((scene) => {
       const sceneViewport = scene.viewport.width < 768 ? "mobile" : "desktop";
       if (sceneViewport !== viewport || scene.status !== "captured" || !scene.screenshotArtifactId) return false;
@@ -77,7 +87,7 @@ export function buildRebuildDraftPackFiles(capture: DesignCapture, brief: Design
     version: 2,
     project,
     capture,
-    designBrief: brief,
+    designBrief: effectiveBrief,
     ...(recorderFlow ? { importedRecorderFlow: recorderFlow } : {}),
     ...(recorderFlowMatch ? { importedRecorderFlowMatch: recorderFlowMatch } : {})
   };
@@ -89,8 +99,8 @@ export function buildRebuildDraftPackFiles(capture: DesignCapture, brief: Design
     stack: brief.stack,
     target: brief.goal,
     assetPolicy: brief.rebuild.assetPolicy,
-    requestedViewports: brief.rebuild.viewports,
-    requestedStates: brief.rebuild.states,
+    requestedViewports,
+    requestedStates,
     knownEvidence: {
       nodes: Object.keys(project.nodes).length,
       styles: Object.keys(project.styles).length,
@@ -127,8 +137,8 @@ ${locale === "zh"
 
 - Source: ${capture.page.url}
 - Status: rebuild-draft
-- Viewports: ${brief.rebuild.viewports.join(", ")}
-- States: ${brief.rebuild.states.join(", ")}
+- Viewports: ${requestedViewports.join(", ")}
+- States: ${requestedStates.join(", ")}
 - Asset policy: ${brief.rebuild.assetPolicy}
 - Canvas evidence: ${brief.rebuild.captureCanvas ? "enabled with bounded readable frames" : "disabled"}
 

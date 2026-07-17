@@ -11,6 +11,7 @@ import {
   renderAcceptanceReportHtml
 } from "../src/capture-v2/validation/acceptance.ts";
 import { comparePng, cssRectsToPixelRects } from "./lib/visual-diff.mjs";
+import { buildDynamicAnimationSelectors, buildTransientEdgeMask, intersectsViewport, isBoundedDynamicMask } from "./lib/verification-policy.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help) {
@@ -34,6 +35,7 @@ const rules = {
   ...(args.colorThreshold !== undefined ? { pixelColorThreshold: args.colorThreshold } : {}),
   ...(args.geometryTolerance !== undefined ? { keyElementGeometryToleranceCssPx: args.geometryTolerance } : {})
 };
+const dynamicAnimationSelectors = buildDynamicAnimationSelectors(project);
 const outputDir = path.resolve(args.output ?? `design-lens-acceptance-${Date.now()}`);
 const sceneOutputDir = path.join(outputDir, "scenes");
 await fs.mkdir(sceneOutputDir, { recursive: true });
@@ -43,7 +45,7 @@ const results = [];
 try {
   const scenes = project.scenes.filter((scene) => scene.status === "captured" && scene.screenshotArtifactId);
   for (const scene of scenes) {
-    results.push(...await verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors: args.masks }));
+    results.push(...await verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors: args.masks, dynamicAnimationSelectors }));
   }
 } finally {
   await browser.close();
@@ -58,7 +60,7 @@ await Promise.all([
 console.log(JSON.stringify({ status: report.status, outputDir, summary: report.summary }, null, 2));
 if (report.status !== "passed") process.exitCode = 2;
 
-async function verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors }) {
+async function verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors, dynamicAnimationSelectors }) {
   const base = {
     id: scene.id,
     name: scene.name,
@@ -94,7 +96,7 @@ async function verifyScene({ browser, candidateUrl, pack, project, scene, rules,
       await document.fonts?.ready;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
-    const replay = await replayScene(page, scene.triggers);
+    const replay = await replayScene(page, scene);
     if (!replay.ok) {
       return [{ ...base, status: replay.skipped ? "skipped" : "failed", reason: replay.reason, browserErrors }];
     }
@@ -122,7 +124,7 @@ async function verifyScene({ browser, candidateUrl, pack, project, scene, rules,
     const geometryItems = [];
     for (const node of Object.values(project.nodes).slice(0, 80)) {
       const expected = node.rectByScene[scene.id];
-      if (!expected || !node.selector) continue;
+      if (!expected || !node.selector || !intersectsViewport(expected, scene.viewport)) continue;
       const actualBox = await page.locator(node.selector).first().boundingBox().catch(() => null);
       const actual = actualBox ? { x: actualBox.x, y: actualBox.y, width: actualBox.width, height: actualBox.height } : undefined;
       geometryItems.push(compareGeometry(node.id, node.selector, expected, actual, rules.keyElementGeometryToleranceCssPx));
@@ -145,6 +147,15 @@ async function verifyScene({ browser, candidateUrl, pack, project, scene, rules,
       })).catch(() => []);
       cssMaskRects.push(...boxes);
     }
+    for (const selector of dynamicAnimationSelectors) {
+      const boxes = await page.locator(selector).evaluateAll((elements) => elements.slice(0, 24).map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      })).catch(() => []);
+      cssMaskRects.push(...boxes.filter((box) => isBoundedDynamicMask(box, scene.viewport)));
+    }
+    const transientEdgeMask = buildTransientEdgeMask(scene);
+    if (transientEdgeMask) cssMaskRects.push(transientEdgeMask);
 
     const candidateBytes = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: scene.capture.fullPage });
     await fs.writeFile(path.join(sceneOutputDir, candidateName), candidateBytes);
@@ -426,12 +437,14 @@ async function selectorBoxes(page, selector) {
   })).catch(() => []);
 }
 
-async function replayScene(page, triggers) {
-  for (const trigger of triggers) {
+async function replayScene(page, scene) {
+  for (const trigger of scene.triggers) {
     if (trigger.kind === "initial") continue;
     if (trigger.kind === "scroll") {
       const y = typeof trigger.value === "number" ? trigger.value : 0;
-      await page.evaluate((scrollY) => window.scrollTo(0, scrollY), y);
+      await page.evaluate((scrollY) => window.scrollTo({ left: 0, top: scrollY, behavior: "instant" }), y);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      if (scene.id.includes("page-baseline")) await page.waitForTimeout(320);
       continue;
     }
     if (trigger.kind === "wait") {

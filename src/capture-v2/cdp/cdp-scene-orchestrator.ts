@@ -43,6 +43,8 @@ export async function captureCdpScenes(
 ) {
   const captures: CdpSceneCapture[] = [];
   await command("Page.enable");
+  await command("DOM.enable");
+  await command("CSS.enable");
   const originalMetrics = await command<Record<string, unknown>>("Page.getLayoutMetrics");
   const originalScroll = metricScroll(originalMetrics);
   try {
@@ -114,7 +116,24 @@ async function captureForcedPseudoScene(
     if (error instanceof AnimationRestoreError) throw error;
     return { scene: { ...scene, status: "failed" as const, error: error instanceof Error ? error.message : String(error) } };
   } finally {
-    if (targetNodeId) await command("CSS.forcePseudoState", { nodeId: targetNodeId, forcedPseudoClasses: [] });
+    if (targetNodeId) await clearForcedPseudoState(command, target.selector, targetNodeId);
+  }
+}
+
+async function clearForcedPseudoState(command: CdpCommand, selector: string, targetNodeId: number) {
+  try {
+    await command("CSS.forcePseudoState", { nodeId: targetNodeId, forcedPseudoClasses: [] });
+    return;
+  } catch (originalError) {
+    try {
+      const documentResult = await command<{ root?: { nodeId?: number } }>("DOM.getDocument", { depth: -1, pierce: true });
+      if (!documentResult.root?.nodeId) throw originalError;
+      const query = await command<{ nodeId?: number }>("DOM.querySelector", { nodeId: documentResult.root.nodeId, selector });
+      if (!query.nodeId) throw originalError;
+      await command("CSS.forcePseudoState", { nodeId: query.nodeId, forcedPseudoClasses: [] });
+    } catch {
+      throw originalError;
+    }
   }
 }
 
@@ -333,7 +352,7 @@ async function restorePage(command: CdpCommand, scroll: { x: number; y: number }
 
 async function scrollPage(command: CdpCommand, x: number, y: number) {
   const result = await command<{ exceptionDetails?: unknown }>("Runtime.evaluate", {
-    expression: `window.scrollTo(${Math.round(x)}, ${Math.round(y)})`,
+    expression: `window.scrollTo({ left: ${Math.round(x)}, top: ${Math.round(y)}, behavior: "instant" })`,
     returnByValue: true,
     awaitPromise: false,
     userGesture: false

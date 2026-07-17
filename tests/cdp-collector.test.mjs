@@ -171,6 +171,32 @@ test("CDP scene orchestrator captures every requested initial viewport and resto
   assert.equal(calls.some(([method]) => method === "Emulation.clearDeviceMetricsOverride"), true);
 });
 
+test("CDP scene capture degrades gracefully when the Animation domain is unavailable", async () => {
+  const calls = [];
+  const command = async (method, params = {}) => {
+    calls.push([method, params]);
+    if (method === "Animation.enable") throw { code: -32601, message: "'Animation.enable' wasn't found" };
+    if (method === "Page.getLayoutMetrics") return { cssLayoutViewport: { pageX: 0, pageY: 0, clientWidth: 390, clientHeight: 844 }, cssContentSize: { x: 0, y: 0, width: 390, height: 1600 } };
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "frame", loaderId: "loader" } } };
+    if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
+    if (method === "DOMSnapshot.captureSnapshot") return { strings: [], documents: [] };
+    if (method === "Page.captureScreenshot") return { data: "iVBORw==" };
+    return {};
+  };
+
+  const captures = await captureCdpScenes(command, {
+    phase: "recording-start",
+    viewports: [{ id: "mobile", width: 390, height: 844, devicePixelRatio: 2 }],
+    states: [],
+    stateTargets: [],
+    nodes: []
+  }, []);
+
+  assert.equal(captures[0].scene.status, "captured");
+  assert.equal(captures[0].screenshotBase64, "iVBORw==");
+  assert.equal(calls.some(([method]) => method === "CSS.enable"), true);
+});
+
 test("Canvas evidence collector keeps bounded readable and tainted states", async () => {
   const command = async (method) => {
     if (method === "Runtime.evaluate") {
@@ -255,6 +281,41 @@ test("CDP scene orchestrator clears forced pseudo state and emulation after fail
   assert.equal(calls.some(([method]) => method === "DOMSnapshot.captureSnapshot"), false);
 });
 
+test("CDP scene orchestrator reacquires a target when deep collection invalidates its node id", async () => {
+  const clearNodeIds = [];
+  let documentReads = 0;
+  const command = async (method, params = {}) => {
+    if (method === "Page.getLayoutMetrics") return { cssLayoutViewport: { pageX: 0, pageY: 0, clientWidth: 1200, clientHeight: 800 } };
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "frame", loaderId: "loader" } } };
+    if (method === "DOM.getDocument") {
+      documentReads += 1;
+      return { root: { nodeId: documentReads } };
+    }
+    if (method === "DOM.querySelector") return { nodeId: documentReads === 1 ? 10 : 20 };
+    if (method === "CSS.forcePseudoState" && params.forcedPseudoClasses?.length === 0) {
+      clearNodeIds.push(params.nodeId);
+      if (params.nodeId === 10) throw { code: -32000, message: "Could not find node with given id" };
+    }
+    if (method === "DOM.describeNode") return { node: { backendNodeId: 22, nodeName: "BUTTON" } };
+    if (method === "CSS.getComputedStyleForNode") return { computedStyle: [] };
+    if (method === "CSS.getMatchedStylesForNode") return {};
+    if (method === "DOM.getBoxModel") return { model: { border: [0, 0, 100, 0, 100, 40, 0, 40] } };
+    if (method === "Page.captureScreenshot") return { data: "iVBORw==" };
+    return {};
+  };
+
+  const captures = await captureCdpScenes(command, {
+    phase: "recording-stop",
+    viewports: [{ id: "desktop", width: 1200, height: 800, devicePixelRatio: 1 }],
+    states: ["hover"],
+    stateTargets: [{ state: "hover", nodeId: "button", selector: "button" }],
+    nodes: []
+  }, []);
+
+  assert.equal(captures[0].scene.status, "captured");
+  assert.deepEqual(clearNodeIds, [10, 20]);
+});
+
 test("CDP scene orchestrator fails the capture when emulation cannot be restored", async () => {
   const command = async (method) => {
     if (method === "Page.getLayoutMetrics") return { cssLayoutViewport: { pageX: 0, pageY: 0, clientWidth: 390, clientHeight: 844 } };
@@ -295,8 +356,8 @@ test("CDP scene orchestrator captures responsive scroll and restores the origina
   assert.equal(captures.length, 2);
   assert.equal(captures[1].scene.phase, "responsive-scroll");
   assert.equal(captures[1].scene.status, "captured");
-  assert.equal(expressions.some((expression) => expression === "window.scrollTo(0, 717)"), true);
-  assert.equal(expressions.filter((expression) => expression === "window.scrollTo(0, 120)").length >= 2, true);
+  assert.equal(expressions.some((expression) => expression === "window.scrollTo({ left: 0, top: 717, behavior: \"instant\" })"), true);
+  assert.equal(expressions.filter((expression) => expression === "window.scrollTo({ left: 0, top: 120, behavior: \"instant\" })").length >= 2, true);
 });
 
 test("CDP scene orchestrator records short-page scroll as not applicable", async () => {

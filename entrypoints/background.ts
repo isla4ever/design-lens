@@ -1,4 +1,5 @@
 import { defineBackground } from "wxt/utils/define-background";
+import { createCaptureVisibleTabQueue } from "../src/capture-v2/browser/capture-visible-tab-queue";
 import { captureCdpScenes } from "../src/capture-v2/cdp/cdp-scene-orchestrator";
 import type { CdpProtocolEvent } from "../src/capture-v2/cdp/deep-collector";
 import { sanitizeDomSnapshot } from "../src/capture-v2/cdp/dom-snapshot-privacy";
@@ -6,6 +7,8 @@ import { withCdpSession, type CdpTransport } from "../src/capture-v2/cdp/cdp-ses
 import { CaptureProjectStore, type StoredArtifact } from "../src/storage/capture-project-store";
 import type { ArtifactStorageRequest, ArtifactStorageResponse, DeepCaptureRequest, DeepCaptureResponse, WorkspaceRequest, WorkspaceResponse } from "../src/shared/messages";
 import { ensureDesignLensPageBridge } from "../src/shared/page-bridge";
+
+const captureVisibleTabQueue = createCaptureVisibleTabQueue();
 
 export default defineBackground(() => {
   const store = new CaptureProjectStore();
@@ -140,7 +143,8 @@ async function captureAndStoreVisibleTab(
     if (!sender.tab?.active || sender.tab.windowId === undefined) {
       throw new Error("The recorded page must remain the active tab while screenshots are captured.");
     }
-    const dataUrl = await browser.tabs.captureVisibleTab(sender.tab.windowId, { format: "png" });
+    const windowId = sender.tab.windowId;
+    const dataUrl = await captureVisibleTabQueue.run(() => browser.tabs.captureVisibleTab(windowId, { format: "png" }));
     const blob = await fetch(dataUrl).then((response) => response.blob());
     const stored = await store.putArtifact({
       projectId: message.storageProjectId,

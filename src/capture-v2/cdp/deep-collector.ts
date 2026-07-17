@@ -152,7 +152,7 @@ export async function collectDeepCdpEvidence(
   await command("Page.enable");
   await command("DOM.enable");
   await command("CSS.enable");
-  await command("Animation.enable");
+  await enableOptionalAnimationDomain(command);
 
   const frameBefore = await command<Record<string, unknown>>("Page.getFrameTree");
   const documentResult = await command<{ root?: { nodeId?: number } }>("DOM.getDocument", { depth: -1, pierce: true });
@@ -221,6 +221,23 @@ export async function collectDeepCdpEvidence(
     },
     errors
   };
+}
+
+async function enableOptionalAnimationDomain(command: CdpCommand) {
+  try {
+    await command("Animation.enable");
+  } catch (error) {
+    if (!isUnsupportedCdpMethod(error)) throw error;
+  }
+}
+
+function isUnsupportedCdpMethod(error: unknown) {
+  if (error && typeof error === "object") {
+    const candidate = error as { code?: unknown; message?: unknown };
+    if (candidate.code === -32601) return true;
+    if (typeof candidate.message === "string" && /wasn't found|method not found/i.test(candidate.message)) return true;
+  }
+  return /wasn't found|method not found|\"code\"\s*:\s*-32601/i.test(error instanceof Error ? error.message : String(error));
 }
 
 function normalizeMatchedRules(value: Record<string, unknown>, events: CdpProtocolEvent[]) {

@@ -25,7 +25,7 @@ It is not a source downloader, and it never turns missing states into a claim of
 
 | Highlight | How Design Lens handles it |
 | --- | --- |
-| **One action for baseline capture** | Smart Capture runs a bounded index, stable snapshot, and short passive observation under a 15-second total budget. Large or continuously mutating pages degrade safely. |
+| **One action for baseline capture** | Smart Capture shares a 15-second budget across preflight indexing, stabilization, and passive observation. Rebuild screenshot and CDP finalization use separate timeouts and circuit breakers, while large or continuously mutating pages degrade safely. |
 | **Reference and Rebuild are separate modes** | Reference extracts transferable design language. Rebuild preserves real screenshots, scenes, geometry, and acceptance constraints. The product never conflates inspiration with reproduction. |
 | **Capture only what is missing** | Evidence health produces at most three scroll, hover, focus, open, or responsive tasks instead of making users manually record the entire page first. |
 | **Capture-to-acceptance workflow** | Rebuild Packs carry scene manifests and acceptance rules for screenshot, pixel, geometry, motion-checkpoint, and browser-error checks. |
@@ -159,6 +159,8 @@ npm run verify:rebuild -- \
 
 The verifier replays only initial, scroll, hover, focus, and open states supported by `scene-manifest.json`. It produces JSON/HTML reports, candidate screenshots, diffs, and focused repair context for an agent.
 
+See the [AstroWind reconstruction benchmark](docs/astrowind-rebuild-benchmark.md) for real long-page capture, candidate, and error measurements. The report keeps failed cases visible and uses them to prioritize the next development stage.
+
 ## Privacy And Permissions
 
 Design Lens processes and exports evidence locally by default. It sends a reduced evidence payload only when a user configures a model key and explicitly requests AI output. That payload is designed to exclude raw DOM, cookies, local storage, credentials, screenshots, and unmasked input values.
@@ -178,8 +180,8 @@ Local Rebuild packs may contain visible page text, screenshots, and sanitized DO
 ```bash
 npm run dev                 # Standard development server
 npm run dev:collector       # Collector development server
-npm run check:all           # TypeScript, 78 tests, and both production builds
-npm run check:browser       # 20k/100k DOM performance, stop, and recovery probes
+npm run check:all           # TypeScript, 84 tests, and both production builds
+npm run check:browser       # Real MV3 injection plus 20k/100k DOM performance and recovery probes
 npm run package:release     # Permission/version validation, ZIPs, and SHA256SUMS
 ```
 
@@ -210,6 +212,7 @@ docs/               Architecture, privacy, product decisions, and validation rec
 - [Architecture](docs/architecture.md)
 - [Privacy And Permissions](docs/privacy.md)
 - [Validation](docs/validation.md)
+- [AstroWind reconstruction benchmark](docs/astrowind-rebuild-benchmark.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)

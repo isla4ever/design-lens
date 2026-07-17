@@ -49,7 +49,7 @@ type CollectOptions = {
   maxDurationMs?: number;
 };
 
-const DEFAULT_MAX_SEGMENTS = 5;
+const DEFAULT_MAX_SEGMENTS = 12;
 const DEFAULT_CAPTURE_TIMEOUT_MS = 4000;
 const DEFAULT_MAX_DURATION_MS = 10_000;
 
@@ -109,8 +109,8 @@ export async function collectSceneScreenshots(options: CollectOptions): Promise<
         scene.status = "captured";
       } catch (error) {
         scene.error = error instanceof Error ? error.message : String(error);
+        truncated = true;
         stopAfterScene = isCaptureCircuitBreaker(error);
-        if (stopAfterScene) truncated = true;
       }
       scenes.push(scene);
       if (stopAfterScene) break;

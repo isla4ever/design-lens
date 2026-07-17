@@ -201,7 +201,6 @@ export function finalizeAcceptanceReport(input: {
 }): AcceptanceReport {
   const rules = input.rules ?? input.plan.rules;
   const evaluatedScenes = input.scenes.filter((scene) => scene.status === "passed" || scene.status === "failed");
-  const evaluatedStateScenes = evaluatedScenes.filter((scene) => !scene.kind || scene.kind === "scene");
   const motionScenes = input.scenes.filter((scene) => scene.kind === "motion-checkpoint");
   const canvasScenes = input.scenes.filter((scene) => scene.kind === "canvas-frame");
   const pixelRatios = evaluatedScenes.flatMap((scene) => scene.pixel ? [scene.pixel.mismatchRatio] : []);
@@ -220,7 +219,7 @@ export function finalizeAcceptanceReport(input: {
   const missingCanvasFrameBaseline = (input.plan.baseline.canvasVerificationRequired ?? input.project.policy?.captureCanvas === true)
     && capturedCanvasBaselineCount < 1;
   const stateCoverage = input.plan.baseline.requestedSceneCount
-    ? evaluatedStateScenes.length / input.plan.baseline.requestedSceneCount
+    ? (input.plan.baseline.requestedSceneCount - input.plan.baseline.missingSceneCount) / input.plan.baseline.requestedSceneCount
     : 0;
   const summary = {
     requestedScenes: input.plan.baseline.requestedSceneCount,

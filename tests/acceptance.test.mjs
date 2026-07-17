@@ -9,6 +9,7 @@ import {
   renderAcceptanceReportHtml
 } from "../src/capture-v2/validation/acceptance.ts";
 import { comparePng } from "../scripts/lib/visual-diff.mjs";
+import { buildDynamicAnimationSelectors, buildTransientEdgeMask, intersectsViewport, isBoundedDynamicMask } from "../scripts/lib/verification-policy.mjs";
 
 function projectFixture() {
   return {
@@ -77,6 +78,31 @@ test("acceptance report cannot pass while requested baselines are missing", () =
   const html = renderAcceptanceReportHtml(report);
   assert.equal(html.includes("<unsafe>"), false);
   assert.match(html, /&lt;unsafe&gt;/);
+});
+
+test("state coverage is based on requested states rather than duplicate baseline segments", () => {
+  const project = { ...projectFixture(), scenes: [
+    ...projectFixture().scenes,
+    { ...projectFixture().scenes[0], id: "desktop-scroll-one" },
+    { ...projectFixture().scenes[0], id: "desktop-scroll-two" }
+  ] };
+  const plan = buildAcceptancePlan(project, [
+    { id: "desktop-initial", viewport: "desktop", state: "initial", status: "captured" },
+    { id: "desktop-scroll", viewport: "desktop", state: "scroll", status: "captured" },
+    { id: "mobile-initial", viewport: "mobile", state: "initial", status: "planned" }
+  ]);
+  const common = { name: "Scene", status: "passed", viewport: { width: 100, height: 80, deviceScaleFactor: 1 }, maskedRegionCount: 0, browserErrors: [] };
+  const report = finalizeAcceptanceReport({
+    project,
+    candidateUrl: "http://candidate.test/",
+    plan,
+    scenes: [
+      { ...common, id: "desktop-initial" },
+      { ...common, id: "desktop-scroll-one" },
+      { ...common, id: "desktop-scroll-two" }
+    ]
+  });
+  assert.equal(report.summary.stateCoverage, 0.6667);
 });
 
 test("motion checkpoints fail independently without inflating state coverage", () => {
@@ -154,6 +180,26 @@ test("pixel comparison detects differences and honors dynamic masks", () => {
   const masked = comparePng(reference, candidate, { maskRects: [{ x: 0, y: 0, width: 1, height: 1 }] });
   assert.equal(masked.mismatchPixels, 0);
   assert.equal(masked.hotspot, undefined);
+});
+
+test("verification policy masks only bounded unverified animation regions", () => {
+  const project = {
+    animations: [
+      { selector: ".slow", durationMs: 1000 },
+      { selector: ".slow", durationMs: 1000 },
+      { selector: ".quick", durationMs: 200 },
+      { selector: ".verified", durationMs: 800 }
+    ],
+    motionCheckpoints: [{ status: "captured", animations: [{ selector: ".verified" }] }]
+  };
+  assert.deepEqual(buildDynamicAnimationSelectors(project), [".slow"]);
+  const viewport = { width: 1000, height: 800 };
+  assert.equal(intersectsViewport({ x: 20, y: 20, width: 100, height: 100 }, viewport), true);
+  assert.equal(intersectsViewport({ x: 20, y: 900, width: 100, height: 100 }, viewport), false);
+  assert.equal(isBoundedDynamicMask({ x: 0, y: 0, width: 400, height: 400 }, viewport), true);
+  assert.equal(isBoundedDynamicMask({ x: 0, y: 0, width: 1000, height: 800 }, viewport), false);
+  assert.deepEqual(buildTransientEdgeMask({ id: "page-baseline-2", viewport }), { x: 0, y: 560, width: 1000, height: 240 });
+  assert.equal(buildTransientEdgeMask({ id: "cdp-desktop-initial", viewport }), undefined);
 });
 
 function solidPng(width, height, rgba) {

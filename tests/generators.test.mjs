@@ -476,12 +476,18 @@ test("scene manifest maps responsive and forced states while leaving unobserved 
   const brief = {
     ...DEFAULT_DESIGN_BRIEF,
     mode: "rebuild",
-    rebuild: { viewports: ["desktop", "mobile"], states: ["initial", "scroll", "hover", "focus", "open"], assetPolicy: "manifest-only", authorizationConfirmed: true }
+    rebuild: { ...DEFAULT_DESIGN_BRIEF.rebuild, authorizationConfirmed: true }
   };
   const files = buildRebuildDraftPackFiles(capture, brief, "zh");
   const project = captureProjectFromDesignCapture(capture, "rebuild");
   const manifest = JSON.parse(files.find((file) => file.name === "scene-manifest.json").content);
+  const reconstruction = JSON.parse(files.find((file) => file.name === "reconstruction-spec.json").content);
+  const evidence = JSON.parse(files.find((file) => file.name === "evidence.json").content);
   const byId = Object.fromEntries(manifest.requestedScenes.map((scene) => [scene.id, scene]));
+  assert.equal(manifest.requestedScenes.length, 10);
+  assert.deepEqual(reconstruction.requestedViewports, ["desktop", "mobile"]);
+  assert.deepEqual(reconstruction.requestedStates, ["initial", "scroll", "hover", "focus", "open"]);
+  assert.deepEqual(evidence.designBrief.rebuild.viewports, ["desktop", "mobile"]);
   assert.equal(byId["requested-desktop-initial"].status, "captured");
   assert.equal(byId["requested-mobile-initial"].status, "captured");
   assert.equal(byId["requested-desktop-scroll"].status, "captured");
