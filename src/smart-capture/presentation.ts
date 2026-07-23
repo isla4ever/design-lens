@@ -16,7 +16,7 @@ export function formatSmartCaptureTask(task: SmartCaptureTask, locale: Locale) {
   const copy: Record<SmartCaptureTask["kind"], { title: [string, string]; hint: [string, string] }> = {
     "record-interactions": {
       title: [task.state === "scroll" ? "补录页面滚动" : "补录关键交互", task.state === "scroll" ? "Capture page scroll" : "Capture key interactions"],
-      hint: ["使用补充覆盖完成页面未自然出现的状态。", "Use guided coverage for states that did not appear naturally."]
+      hint: ["使用手动补采完成页面未自然出现的状态。", "Use manual capture for states that did not appear naturally."]
     },
     "capture-component": {
       title: ["选取核心组件", "Pick a key component"],
@@ -53,8 +53,8 @@ function formatRecorderTask(task: SmartCaptureTask, zh: boolean) {
   }
   if (task.kind === "record-interactions") {
     return zh
-      ? { title: "补录关键交互", hint: "Recorder 未保留可用目标，请在引导采集中手动完成该状态。" }
-      : { title: "Capture key interaction", hint: "Recorder kept no usable target; complete the state in guided coverage." };
+      ? { title: "补录关键交互", hint: "Recorder 未保留可用目标，请在手动补采中完成该状态。" }
+      : { title: "Capture key interaction", hint: "Recorder kept no usable target; complete the state with manual capture." };
   }
   const state = task.state === "scroll" ? (zh ? "滚动" : "scroll") : task.state === "hover" ? (zh ? "悬停" : "hover") : (zh ? "打开" : "open");
   return zh

@@ -1,5 +1,5 @@
 import React from "react";
-import { Archive, PanelRightOpen, RefreshCw, ScanSearch, Settings2, Sparkles, Zap } from "lucide-react";
+import { Archive, MousePointerClick, PanelRightOpen, RefreshCw, Settings2, Sparkles, Zap } from "lucide-react";
 import { formatPatternName } from "../../src/generators/skill/skill-pattern-labels";
 import type { DesignBrief } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
@@ -47,7 +47,7 @@ export function ResultPanel({ capture, locale, isBusy, hasAiKey, brief, lastPack
       </div>
 
       <div className="result-secondary-actions">
-        <button className="improve-coverage-action" type="button" onClick={onImproveCoverage} disabled={isBusy}><ScanSearch aria-hidden="true" /><span>{locale === "zh" ? `补缺口${taskCount ? ` (${taskCount})` : ""}` : `Fill gaps${taskCount ? ` (${taskCount})` : ""}`}</span></button>
+        <button className="improve-coverage-action" type="button" onClick={onImproveCoverage} disabled={isBusy}><MousePointerClick aria-hidden="true" /><span>{locale === "zh" ? `手动补采${taskCount ? ` (${taskCount})` : ""}` : `Manual capture${taskCount ? ` (${taskCount})` : ""}`}</span></button>
         <button className="open-workspace-action" type="button" onClick={onOpenWorkspace}><PanelRightOpen aria-hidden="true" /><span>{locale === "zh" ? "工作区" : "Workspace"}</span></button>
       </div>
     </section>

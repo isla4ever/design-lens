@@ -337,7 +337,7 @@ export function buildSmartCaptureMarkup(locale: Locale, phase: SmartCapturePhase
     complete: ["智能捕获完成", "Smart Capture complete", "结果已准备。", "Results are ready."],
     degraded: ["已降级完成", "Completed with limits", "已保留安全证据，并标记未覆盖内容。", "Safe evidence was kept and gaps were marked."],
     cancelled: ["已停止捕获", "Capture stopped", "已整理停止前的有效证据。", "Evidence collected before stopping was preserved."],
-    error: ["智能捕获失败", "Smart Capture failed", "请重试或改用补充覆盖。", "Retry or use guided coverage."]
+    error: ["智能捕获失败", "Smart Capture failed", "请重试或改用手动补采。", "Retry or use manual capture."]
   };
   const copy = labels[phase];
   const finished = phase === "complete" || phase === "degraded" || phase === "cancelled" || phase === "error";

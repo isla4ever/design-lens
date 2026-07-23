@@ -6,6 +6,25 @@ version tags.
 
 ## Unreleased
 
+### Changed
+
+- Open the compact workflow as a native toolbar-anchored extension popup while
+  keeping the Side Panel as the default action surface.
+- Rename supplemental recording actions to Manual Capture and show a concise
+  AI setup guide before first-time Prompt generation.
+
+### Fixed
+
+- Left-align history content, center delete icons, and require an inline
+  confirmation before removing a capture.
+- Dismiss transient Smart Capture progress notices automatically after capture
+  completion without hiding persistent success or error messages.
+
+### Security
+
+- Pin patched `adm-zip` and `brace-expansion` transitive development
+  dependencies while upstream WXT ranges catch up.
+
 ## 0.2.0 - 2026-07-16
 
 ### Added

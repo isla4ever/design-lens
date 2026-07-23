@@ -103,6 +103,110 @@ try {
     await page.close();
   }
 
+  const historyPage = await context.newPage();
+  await historyPage.setViewportSize({ width: 360, height: 800 });
+  await historyPage.goto(`chrome-extension://${extensionId}/sidepanel.html`, { waitUntil: "domcontentloaded" });
+  await historyPage.evaluate(async (url) => {
+    const capturedAt = new Date().toISOString();
+    const capture = {
+      scope: "page",
+      page: { url, title: "History alignment fixture", capturedAt },
+      viewport: { width: 1440, height: 900, devicePixelRatio: 1 },
+      tokens: { cssVariables: [], colors: [], backgrounds: [], spacing: [], radii: [], shadows: [], typography: [] },
+      layout: [],
+      layoutProfile: { density: "balanced", composition: "page", dominantDisplays: [], dominantGaps: [], alignment: [], structure: [], cadence: [], emphasis: [] },
+      components: [],
+      motion: [],
+      interactions: [],
+      evidence: [],
+      analysis: { character: "structured", tags: [], recommendations: [] }
+    };
+    const record = {
+      id: "ui-history-fixture",
+      tabId: 987654,
+      url,
+      title: "History alignment fixture",
+      mode: "reference",
+      capture,
+      updatedAt: capturedAt
+    };
+    await new Promise((resolvePromise, reject) => {
+      const request = indexedDB.open("design-lens-captures", 3);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction("workspaceCaptures", "readwrite");
+        transaction.objectStore("workspaceCaptures").put(record);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
+          database.close();
+          resolvePromise();
+        };
+      };
+    });
+  }, fixtureUrl);
+  await worker.evaluate(async () => {
+    await chrome.storage.local.set({ designLensLocale: "zh", designLensTheme: "light", designLensSidePanelView: "history" });
+  });
+  await historyPage.reload({ waitUntil: "domcontentloaded" });
+  const historyItem = historyPage.locator(".history-item");
+  await historyItem.waitFor();
+  const historyLayout = await historyItem.evaluate((item) => {
+    const select = item.querySelector(".history-select");
+    const title = item.querySelector(".history-select strong");
+    const deleteButton = item.querySelector(".history-delete");
+    const deleteIcon = deleteButton?.querySelector("svg");
+    if (!select || !title || !deleteButton || !deleteIcon) throw new Error("History fixture is incomplete");
+    const selectRect = select.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
+    const buttonRect = deleteButton.getBoundingClientRect();
+    const iconRect = deleteIcon.getBoundingClientRect();
+    return {
+      titleInset: titleRect.left - selectRect.left,
+      titleIsLeftAligned: titleRect.left < selectRect.left + selectRect.width / 3,
+      deleteIconDeltaX: Math.abs((buttonRect.left + buttonRect.width / 2) - (iconRect.left + iconRect.width / 2)),
+      deleteIconDeltaY: Math.abs((buttonRect.top + buttonRect.height / 2) - (iconRect.top + iconRect.height / 2))
+    };
+  });
+  if (!historyLayout.titleIsLeftAligned || historyLayout.titleInset < 8 || historyLayout.titleInset > 16) {
+    throw new Error(`History content is not left aligned: ${JSON.stringify(historyLayout)}`);
+  }
+  if (historyLayout.deleteIconDeltaX > 1.5 || historyLayout.deleteIconDeltaY > 1.5) {
+    throw new Error(`History delete icon is not centered: ${JSON.stringify(historyLayout)}`);
+  }
+  await historyPage.locator(".history-select").click();
+  const configurationGuide = historyPage.locator(".configuration-guide");
+  await configurationGuide.waitFor();
+  const guideLayout = await configurationGuide.evaluate((guide) => ({
+    overflowX: guide.scrollWidth > guide.clientWidth,
+    title: guide.querySelector("strong")?.textContent?.trim(),
+    action: guide.querySelector("button")?.textContent?.trim(),
+    actionWraps: guide.querySelector("button") ? getComputedStyle(guide.querySelector("button")).whiteSpace !== "nowrap" : true
+  }));
+  if (guideLayout.overflowX || guideLayout.actionWraps || guideLayout.title !== "首次生成前配置 AI" || guideLayout.action !== "去设置") {
+    throw new Error(`First-use AI configuration guide is invalid: ${JSON.stringify(guideLayout)}`);
+  }
+  await historyPage.screenshot({ path: join(outputDir, "sidepanel-first-use-ai-guide.png"), fullPage: true, animations: "disabled" });
+  await configurationGuide.locator("button").click();
+  await historyPage.locator(".settings-layout").waitFor();
+  await historyPage.locator('.workspace-tabs button[aria-label="历史"]').click();
+  await historyItem.waitFor();
+  await historyPage.locator(".history-delete").click();
+  const confirmation = historyPage.locator(".history-confirmation");
+  await confirmation.waitFor();
+  if (!await historyPage.locator(".history-confirm").evaluate((button) => button === document.activeElement)) {
+    throw new Error("History delete confirmation did not receive focus");
+  }
+  await historyPage.locator(".history-cancel").click();
+  await confirmation.waitFor({ state: "detached" });
+  await historyPage.locator(".history-delete").click();
+  await historyPage.screenshot({ path: join(outputDir, "sidepanel-history-delete-confirmation.png"), fullPage: true, animations: "disabled" });
+  await historyPage.locator(".history-confirm").click();
+  await historyItem.waitFor({ state: "detached" });
+  results.push({ name: "sidepanel-history-actions", ...historyLayout, confirmation: true, passed: true });
+  results.push({ name: "sidepanel-first-use-ai-guide", ...guideLayout, settingsNavigation: true, passed: true });
+  await historyPage.close();
+
   const targetPage = await context.newPage();
   await targetPage.goto(fixtureUrl, { waitUntil: "domcontentloaded" });
   const targetTab = await worker.evaluate(async (url) => {

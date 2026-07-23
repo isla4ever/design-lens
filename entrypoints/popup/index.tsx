@@ -119,14 +119,14 @@ function Popup() {
   async function openManualRecorder(captureBrief = designBrief) {
     if (isBusy) return;
     setStatus("loading");
-    setMessage(locale === "zh" ? "正在打开补充覆盖控制器..." : "Opening guided coverage controls...");
+    setMessage(locale === "zh" ? "正在打开手动补采工具..." : "Opening manual capture controls...");
     try {
       const tabId = await ensureContentScript();
       if (!tabId) throw new Error(t.normalPageOnly);
       const response = await browser.tabs.sendMessage(tabId, { type: "DESIGN_LENS_OPEN_RECORDER", locale, mode: captureBrief.mode, rebuild: captureBrief.mode === "rebuild" ? captureBrief.rebuild : undefined }) as CaptureResponse;
       if (!response.ok) throw new Error(response.error);
       setStatus("idle");
-      setMessage(locale === "zh" ? "补充覆盖控制已放到页面左下角。" : "Guided coverage controls are on the lower-left of the page.");
+      setMessage(locale === "zh" ? "手动补采工具已放到页面左下角。" : "Manual capture controls are on the lower-left of the page.");
       window.close();
     } catch (error) {
       setStatus("error");

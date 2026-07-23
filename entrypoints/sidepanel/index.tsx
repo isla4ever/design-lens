@@ -11,9 +11,11 @@ import { DEFAULT_DESIGN_BRIEF, getStoredDesignBrief, normalizeDesignBrief, setSt
 import { DEFAULT_LOCALE, type Locale } from "../../src/shared/i18n";
 import { getStoredLocale, setStoredLocale } from "../../src/shared/locale-storage";
 import type { CaptureResponse, GuidedCaptureTask, WorkspaceResponse } from "../../src/shared/messages";
+import { openCompactActionPopup } from "../../src/shared/compact-popup";
 import { ensureDesignLensPageBridge } from "../../src/shared/page-bridge";
 import type { DesignCapture } from "../../src/shared/schema";
 import { SIDE_PANEL_VIEW_KEY, type SidePanelView } from "../../src/shared/side-panel";
+import { isSmartCaptureProgressNotice } from "../../src/shared/workspace-notice";
 import { mergeSupplementalTasks, planRecorderSupplementalTasks } from "../../src/smart-capture/recorder-gap-planner";
 import type { SmartCaptureTask } from "../../src/smart-capture/types";
 import { getStoredTheme, resolveSystemTheme, setStoredTheme, type ThemeMode } from "../../src/shared/theme-storage";
@@ -113,10 +115,13 @@ function SidePanel() {
     try {
       const response = await browser.tabs.sendMessage(tabId, { type: "DESIGN_LENS_RECORD_STATUS", locale }) as CaptureResponse;
       if (!response.ok) return;
-      setIsRecording(Boolean(response.isRecording));
+      const nextIsRecording = Boolean(response.isRecording);
+      setIsRecording(nextIsRecording);
+      if (!nextIsRecording) setNotice((current) => isSmartCaptureProgressNotice(current) ? "" : current);
       if (!response.isRecording && refreshOnComplete && hasSignals(response.capture)) await refreshWorkspace(true);
     } catch {
       setIsRecording(false);
+      setNotice((current) => isSmartCaptureProgressNotice(current) ? "" : current);
     }
   }
 
@@ -134,8 +139,11 @@ function SidePanel() {
       const response = await browser.tabs.sendMessage(tabId, { type: "DESIGN_LENS_SMART_CAPTURE_START", locale, mode: brief.mode, rebuild: brief.mode === "rebuild" ? brief.rebuild : undefined }) as CaptureResponse;
       if (!response.ok) throw new Error(response.error);
       setIsRecording(Boolean(response.isRecording));
-      setNotice(locale === "zh" ? "智能捕获进行中" : "Smart Capture in progress");
-      if (!response.isRecording) await refreshWorkspace(true);
+      if (response.isRecording) setNotice(locale === "zh" ? "智能捕获进行中" : "Smart Capture in progress");
+      else {
+        setNotice("");
+        await refreshWorkspace(true);
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : String(error));
     } finally {
@@ -176,7 +184,7 @@ function SidePanel() {
       mode: coverageMode,
       rebuild: coverageMode === "rebuild" ? brief.rebuild : undefined,
       ...(guidedCaptureTask ? { guidedTask: guidedCaptureTask } : {})
-    }, guidedCaptureTask ? (locale === "zh" ? "当前补采任务已在页面中开始" : "The current coverage task started on the page") : (locale === "zh" ? "补充覆盖控制已打开" : "Guided coverage controls opened"));
+    }, guidedCaptureTask ? (locale === "zh" ? "当前手动补采任务已开始" : "The manual capture task started on the page") : (locale === "zh" ? "手动补采工具已打开" : "Manual capture controls opened"));
     if (response?.ok) setIsRecording(Boolean(response.isRecording));
   }
 
@@ -293,14 +301,10 @@ function SidePanel() {
   async function openCompactView() {
     try {
       if (activeTabId === null) throw new Error(locale === "zh" ? "当前标签页不可用。" : "The current tab is unavailable.");
-      await browser.windows.create({
-        url: browser.runtime.getURL(`/popup.html?targetTabId=${activeTabId}`),
-        type: "popup",
-        width: 400,
-        height: 640
-      });
+      await openCompactActionPopup(activeTabId);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error));
+      const detail = error instanceof Error ? error.message : String(error);
+      setNotice(locale === "zh" ? `无法打开插件弹窗：${detail}` : `Unable to open the extension popup: ${detail}`);
     }
   }
 
@@ -433,7 +437,7 @@ function SidePanel() {
       <header className="workspace-header">
         <div className="workspace-brand"><div className="workspace-mark">D</div><div><h1>Design Lens</h1><span>{capture ? captureHost(capture.page.url) : locale === "zh" ? "捕获工作区" : "Capture workspace"}</span></div></div>
         <div className="workspace-header-actions">
-          <button type="button" aria-label={locale === "zh" ? "打开紧凑视图" : "Open compact view"} title={locale === "zh" ? "紧凑视图" : "Compact view"} onClick={() => void openCompactView()}><AppWindow aria-hidden="true" /></button>
+          <button type="button" aria-label={locale === "zh" ? "打开插件弹窗" : "Open extension popup"} title={locale === "zh" ? "插件弹窗" : "Extension popup"} onClick={() => void openCompactView()}><AppWindow aria-hidden="true" /></button>
           <button type="button" aria-label={locale === "zh" ? "English" : "中文"} onClick={() => void toggleLocale()}><Languages aria-hidden="true" /></button>
           <button type="button" aria-label={theme === "light" ? (locale === "zh" ? "深色模式" : "Dark mode") : (locale === "zh" ? "浅色模式" : "Light mode")} onClick={() => void toggleTheme()}>{theme === "light" ? <MoonStar aria-hidden="true" /> : <SunMedium aria-hidden="true" />}</button>
         </div>

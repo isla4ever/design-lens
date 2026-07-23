@@ -121,7 +121,13 @@ svg { height: 17px; width: 17px; }
 .workspace-primary:hover { filter: brightness(1.04); }
 .workspace-secondary:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--info) 45%, var(--line)); }
 .workspace-action-grid .workspace-primary { grid-column: 1 / -1; }
-.inline-command { align-items: center; background: transparent; border: 0; color: var(--info); display: flex; font-size: 10px; gap: 6px; margin-top: 10px; min-height: 32px; padding: 4px 0; }
+.configuration-guide { align-items: center; background: var(--surface-2); border-left: 2px solid var(--info); display: grid; gap: 8px; grid-template-columns: 16px minmax(0, 1fr) auto; margin-top: 10px; padding: 8px 9px; }
+.configuration-guide > svg { color: var(--info); height: 15px; width: 15px; }
+.configuration-guide > div { display: grid; gap: 2px; min-width: 0; }
+.configuration-guide strong, .configuration-guide span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.configuration-guide strong { font-size: 10px; }
+.configuration-guide span { color: var(--muted); font-size: 9px; }
+.configuration-guide button { background: transparent; border: 0; color: var(--info); font-size: 10px; min-height: 28px; padding: 4px 0 4px 6px; }
 .historical-context { align-items: center; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 10px; gap: 10px; justify-content: space-between; line-height: 1.35; margin-top: 10px; padding-top: 10px; }
 .historical-context span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .historical-context button { background: transparent; border: 0; color: var(--info); flex: 0 0 auto; font-size: 10px; padding: 5px 0; }
@@ -225,14 +231,22 @@ svg { height: 17px; width: 17px; }
 .route-warning { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
 
 .history-list { display: grid; gap: 6px; }
-.history-item { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; display: grid; grid-template-columns: 1fr 38px; }
+.history-item { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; display: grid; grid-template-columns: minmax(0, 1fr) 42px; overflow: hidden; }
 .history-item.selected { border-color: var(--accent); }
-.history-select { background: transparent; border: 0; color: var(--text); display: grid; gap: 4px; min-width: 0; padding: 10px; text-align: left; }
+.history-select { background: transparent; border: 0; color: var(--text); display: grid; gap: 4px; justify-content: stretch; justify-items: start; min-width: 0; padding: 10px 12px; text-align: left; width: 100%; }
 .history-select > span { color: var(--accent-strong); font-size: 9px; font-weight: 900; }
 .history-select > strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.history-select small { align-items: center; color: var(--muted); display: flex; font-size: 9px; gap: 4px; }
+.history-select small { align-items: center; color: var(--muted); display: flex; font-size: 9px; gap: 4px; justify-content: flex-start; }
 .history-select small svg { height: 11px; width: 11px; }
-.history-delete { background: transparent; border: 0; border-left: 1px solid var(--line); color: var(--muted); padding: 0; }
+.history-delete { align-items: center; background: transparent; border: 0; border-left: 1px solid var(--line); color: var(--muted); display: flex; justify-content: center; padding: 0; }
+.history-delete:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger); }
+.history-confirmation { align-items: center; background: var(--surface-2); border-top: 1px solid var(--line); display: flex; gap: 10px; grid-column: 1 / -1; justify-content: space-between; min-width: 0; padding: 7px 8px 7px 12px; }
+.history-confirmation > span { align-items: center; display: flex; font-size: 10px; font-weight: 800; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-confirmation > span svg { color: var(--danger); height: 14px; width: 14px; }
+.history-confirmation > div { display: flex; flex: 0 0 auto; gap: 5px; }
+.history-cancel, .history-confirm { border-radius: 5px; font-size: 9px; min-height: 28px; padding: 5px 8px; }
+.history-cancel { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
+.history-confirm { background: var(--danger); border: 1px solid var(--danger); color: #fff; }
 
 .intent-panel, .ai-menu { display: grid; gap: 10px; }
 .intent-head strong, .ai-menu-head strong { font-size: 12px; }

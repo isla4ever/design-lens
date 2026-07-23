@@ -1,5 +1,5 @@
 import React from "react";
-import { Archive, Crosshair, RefreshCw, ScanSearch, Settings2, Square } from "lucide-react";
+import { Archive, Crosshair, MousePointerClick, RefreshCw, ScanSearch, Settings2, Square } from "lucide-react";
 import { formatSmartCaptureOutcome, formatSmartCaptureTask } from "../../src/smart-capture/presentation";
 import type { CaptureMode } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
@@ -67,10 +67,16 @@ export function WorkspaceOverview({ capture, captureMode, tasks, recorderGapCoun
           ) : isCurrentResult ? (
             <button className="workspace-secondary" type="button" onClick={onCapture} disabled={isBusy}><ScanSearch aria-hidden="true" />{zh ? "重新捕获" : "Recapture"}</button>
           ) : null}
-          {isCurrentResult ? <button className="workspace-secondary" type="button" onClick={onImprove} disabled={isBusy || isRecording}>{nextTaskNeedsTarget ? <Crosshair aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}{nextTaskNeedsTarget ? (zh ? "定位首个缺口目标" : "Locate next gap target") : recorderGapCount ? (zh ? `补采 ${recorderGapCount} 个关键缺口` : `Capture ${recorderGapCount} key ${recorderGapCount === 1 ? "gap" : "gaps"}`) : (zh ? "补充覆盖" : "Improve coverage")}</button> : null}
+          {isCurrentResult ? <button className="workspace-secondary" type="button" onClick={onImprove} disabled={isBusy || isRecording}>{nextTaskNeedsTarget ? <Crosshair aria-hidden="true" /> : <MousePointerClick aria-hidden="true" />}{nextTaskNeedsTarget ? (zh ? "手动定位缺口" : "Locate gap manually") : recorderGapCount ? (zh ? `手动补采 ${recorderGapCount} 项` : `Manually capture ${recorderGapCount}`) : (zh ? "手动补采" : "Manual capture")}</button> : null}
         </div>
         {!isCurrentResult ? <div className="historical-context"><span>{zh ? "这是历史结果，仅支持查看和导出。" : "This is a historical result and is read-only."}</span><button type="button" onClick={onShowCurrent}>{zh ? "返回当前标签页" : "Show current tab"}</button></div> : null}
-        {!isRebuild && !hasAiKey ? <button className="inline-command" type="button" onClick={onOpenSettings}><Settings2 aria-hidden="true" />{zh ? "配置 AI 后生成 Prompt" : "Configure AI for prompt generation"}</button> : null}
+        {!isRebuild && !hasAiKey ? (
+          <div className="configuration-guide" role="note">
+            <Settings2 aria-hidden="true" />
+            <div><strong>{zh ? "首次生成前配置 AI" : "Configure AI before generating"}</strong><span>{zh ? "选择服务商，填写 API Key 后保存" : "Choose a provider, add an API key, then save"}</span></div>
+            <button type="button" onClick={onOpenSettings}>{zh ? "去设置" : "Settings"}</button>
+          </div>
+        ) : null}
       </section>
 
       <section className="task-section" aria-labelledby="coverage-task-title">

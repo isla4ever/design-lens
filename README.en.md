@@ -26,7 +26,7 @@ It is not a source downloader, and it never turns missing states into a claim of
 | Highlight | How Design Lens handles it |
 | --- | --- |
 | **One action for baseline capture** | Smart Capture shares a 15-second budget across preflight indexing, stabilization, and passive observation. Rebuild screenshot and CDP finalization use separate timeouts and circuit breakers, while large or continuously mutating pages degrade safely. |
-| **Full Side Panel by default** | Clicking the extension action opens the Side Panel, where mode, capture, coverage, history, and settings share one workspace. The compact view remains available for quick actions and as an automatic fallback on older Chromium builds. |
+| **Full Side Panel by default** | Clicking the extension action opens the Side Panel, where mode, capture, coverage, history, and settings share one workspace. For quick actions, the Side Panel opens the native toolbar-anchored extension popup instead of a separate window. |
 | **Reference and Rebuild are separate modes** | Reference extracts transferable design language. Rebuild preserves real screenshots, scenes, geometry, and acceptance constraints. The product never conflates inspiration with reproduction. |
 | **Capture only what is missing** | Evidence health produces at most three scroll, hover, focus, open, or responsive tasks instead of making users manually record the entire page first. |
 | **Capture-to-acceptance workflow** | Rebuild Packs carry scene manifests and acceptance rules for screenshot, pixel, geometry, motion-checkpoint, and browser-error checks. |
@@ -52,14 +52,14 @@ It is not a source downloader, and it never turns missing states into a claim of
 <table>
   <tr>
     <td width="46%" align="center">
-      <img src="docs/assets/design-lens-popup-smart-capture.png" alt="Design Lens compact Smart Capture result" />
+      <img src="docs/assets/design-lens-popup-smart-capture.png" alt="Design Lens extension popup Smart Capture result" />
     </td>
     <td width="54%" align="center">
       <img src="docs/assets/design-lens-reference-workspace.png" alt="Design Lens Reference workspace" />
     </td>
   </tr>
   <tr>
-    <td><strong>Compact view</strong><br />Keeps only mode, Smart Capture, component picking, and export; detailed briefs live in the Side Panel.</td>
+    <td><strong>Extension popup</strong><br />Keeps only mode, Smart Capture, component picking, manual capture, and export; detailed briefs live in the Side Panel.</td>
     <td><strong>Reference workspace</strong><br />Centralizes evidence, export, and generated follow-up tasks without duplicate actions.</td>
   </tr>
 </table>
