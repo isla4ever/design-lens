@@ -32,7 +32,7 @@ export function collectImplementationTrace(doc: Document, win: Window): Implemen
 
   const frameworkSignals = collectFrameworkSignals(doc, win, assets);
   const librarySignals = collectLibrarySignals(doc, win, assets);
-  const sourceMapHints = collectSourceMapHints(doc);
+  const sourceMapHints = collectSourceMapHints(doc, win);
   const eventModelHints = collectEventModelHints(doc, win);
   const styleRuntimeHints = collectStyleRuntimeHints(doc, win);
   const networkHints = collectNetworkHints(assets);
@@ -60,7 +60,7 @@ function isTraceNoiseAsset(asset: ImplementationAsset) {
 
 function collectScriptAssets(doc: Document, win: Window): ImplementationAsset[] {
   return Array.from(doc.scripts).slice(0, 36).map((script) => {
-    const url = script.src || undefined;
+    const url = script.src ? sanitizeImplementationResourceUrl(script.src, win.location.href) : undefined;
     const label = url ? compactUrl(url, win) : "inline script";
     const signals = [
       script.type ? `type:${script.type}` : "",
@@ -85,7 +85,7 @@ function collectScriptAssets(doc: Document, win: Window): ImplementationAsset[] 
 function collectStylesheetAssets(doc: Document, win: Window): ImplementationAsset[] {
   const links = Array.from(doc.querySelectorAll<HTMLLinkElement>("link[rel~='stylesheet'], link[rel='preload'], link[as='style']"));
   return links.slice(0, 36).map((link) => {
-    const url = link.href || undefined;
+    const url = link.href ? sanitizeImplementationResourceUrl(link.href, win.location.href) : undefined;
     const label = url ? compactUrl(url, win) : "stylesheet link";
     const signals = [
       link.rel ? `rel:${link.rel}` : "",
@@ -142,9 +142,10 @@ function collectPerformanceResources(win: Window): ImplementationAsset[] {
   const entries = win.performance?.getEntriesByType?.("resource") ?? [];
   return entries.slice(0, 80).map((entry): ImplementationAsset => {
     const resource = entry as PerformanceResourceTiming;
+    const url = sanitizeImplementationResourceUrl(resource.name, win.location.href);
     return {
       kind: "resource",
-      url: resource.name,
+      url,
       label: compactUrl(resource.name, win),
       origin: assetOrigin(resource.name, win),
       loading: [resource.initiatorType].filter(Boolean),
@@ -194,10 +195,10 @@ function collectLibrarySignals(doc: Document, win: Window, assets: Implementatio
   return Array.from(new Set(signals)).slice(0, 24);
 }
 
-function collectSourceMapHints(doc: Document) {
+function collectSourceMapHints(doc: Document, win: Window) {
   const hints = [
-    ...Array.from(doc.scripts).map((script) => script.src).filter(Boolean).filter((src) => /\.map($|\?)/i.test(src)).map((src) => `script sourcemap asset: ${src}`),
-    ...Array.from(doc.querySelectorAll<HTMLLinkElement>("link[href]")).map((link) => link.href).filter((href) => /\.map($|\?)/i.test(href)).map((href) => `stylesheet sourcemap asset: ${href}`),
+    ...Array.from(doc.scripts).map((script) => script.src).filter(Boolean).filter((src) => /\.map($|\?)/i.test(src)).map((src) => `script sourcemap asset: ${sanitizeImplementationResourceUrl(src, win.location.href)}`),
+    ...Array.from(doc.querySelectorAll<HTMLLinkElement>("link[href]")).map((link) => link.href).filter((href) => /\.map($|\?)/i.test(href)).map((href) => `stylesheet sourcemap asset: ${sanitizeImplementationResourceUrl(href, win.location.href)}`),
     ...Array.from(doc.scripts).filter((script) => /sourceMappingURL=/.test(script.textContent ?? "")).slice(0, 4).map((_, index) => `inline script ${index + 1} contains sourceMappingURL`),
     ...Array.from(doc.querySelectorAll("style")).filter((style) => /sourceMappingURL=/.test(style.textContent ?? "")).slice(0, 4).map((_, index) => `inline style ${index + 1} contains sourceMappingURL`)
   ];
@@ -263,5 +264,20 @@ function compactUrl(url: string, win: Window) {
     return `${parsed.hostname}${parsed.pathname}`.slice(0, 120);
   } catch {
     return url.slice(0, 120);
+  }
+}
+
+export function sanitizeImplementationResourceUrl(value: string, baseUrl: string) {
+  try {
+    const url = new URL(value, baseUrl);
+    if (url.protocol === "data:") return "data:[omitted]";
+    if (url.protocol === "blob:") return "blob:[omitted]";
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.href.slice(0, 2_000);
+  } catch {
+    return value.split(/[?#]/, 1)[0]?.slice(0, 2_000) ?? "";
   }
 }

@@ -59,14 +59,9 @@ export async function capturePageDesign(doc: Document, win: Window, root: Parent
   const semanticEvidence = Array.from(root.querySelectorAll(SEMANTIC_SELECTOR)).slice(0, MAX_SEMANTIC_CANDIDATES).filter(
     (element) => !isCaptureNoiseElement(element) && hasSemanticEvidence(element)
   );
-  const byArea = [...allVisible].sort((a, b) => scoreElement(b, win) - scoreElement(a, win));
+  const byArea = (await scoreElements(allVisible, win)).sort((a, b) => b.score - a.score).map((item) => item.element);
   const elements = uniqueElements([...semantic, ...byArea, ...semanticEvidence]).slice(0, MAX_ELEMENTS);
-
-  const samples = elements.map((element) => {
-    const selector = buildSelector(element);
-    const style = win.getComputedStyle(element);
-    return { element, selector, style };
-  });
+  const samples = await collectElementSamples(elements, win);
 
   const components: ComponentSpec[] = [];
   const motion: MotionSpec[] = [];
@@ -74,7 +69,10 @@ export async function capturePageDesign(doc: Document, win: Window, root: Parent
   const interactions: InteractionSpec[] = [];
   const evidence: CaptureEvidence[] = [];
 
-  for (const sample of samples) {
+  let analysisSliceStartedAt = win.performance.now();
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = samples[index];
+    if (!sample) continue;
     const rect = sample.element.getBoundingClientRect();
     const layoutSpec = extractLayout(sample.style, rect);
     if (layout.length < 32 && ["flex", "grid", "block"].includes(layoutSpec.display)) {
@@ -97,15 +95,19 @@ export async function capturePageDesign(doc: Document, win: Window, root: Parent
     if (interaction && !interactions.some((item) => item.selector === interaction.selector && item.trigger === interaction.trigger)) {
       interactions.push(interaction);
     }
+    if ((index + 1) % 24 === 0 && win.performance.now() - analysisSliceStartedAt >= SCAN_SLICE_BUDGET_MS) {
+      await yieldToBrowser(win);
+      analysisSliceStartedAt = win.performance.now();
+    }
   }
 
-  for (const component of inferSemanticComponents(doc, rootElement, win)) {
+  for (const component of await inferSemanticComponents(doc, rootElement, win)) {
     if (!components.some((item) => item.selector === component.selector || item.name === component.name && item.textSample === component.textSample)) {
       components.push(component);
     }
   }
 
-  for (const interaction of inferSemanticInteractions(doc, rootElement, win)) {
+  for (const interaction of await inferSemanticInteractions(doc, rootElement, win)) {
     if (!interactions.some((item) => item.selector === interaction.selector && item.trigger === interaction.trigger)) {
       interactions.push(interaction);
     }
@@ -202,6 +204,34 @@ function scoreElement(element: Element, win: Window) {
   return visibleArea + semanticBonus + interactionBonus;
 }
 
+async function scoreElements(elements: Element[], win: Window) {
+  const scored: Array<{ element: Element; score: number }> = [];
+  let sliceStartedAt = win.performance.now();
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    if (element) scored.push({ element, score: scoreElement(element, win) });
+    if ((index + 1) % 48 === 0 && win.performance.now() - sliceStartedAt >= SCAN_SLICE_BUDGET_MS) {
+      await yieldToBrowser(win);
+      sliceStartedAt = win.performance.now();
+    }
+  }
+  return scored;
+}
+
+async function collectElementSamples(elements: Element[], win: Window) {
+  const samples: Array<{ element: Element; selector: string; style: CSSStyleDeclaration }> = [];
+  let sliceStartedAt = win.performance.now();
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    if (element) samples.push({ element, selector: buildSelector(element), style: win.getComputedStyle(element) });
+    if ((index + 1) % 24 === 0 && win.performance.now() - sliceStartedAt >= SCAN_SLICE_BUDGET_MS) {
+      await yieldToBrowser(win);
+      sliceStartedAt = win.performance.now();
+    }
+  }
+  return samples;
+}
+
 function isSemanticElement(element: Element) {
   return element.matches(SEMANTIC_SELECTOR);
 }
@@ -260,14 +290,18 @@ function dedupeMotion(motion: MotionSpec[]) {
   });
 }
 
-function inferSemanticComponents(doc: Document, root: Element, win: Window): ComponentSpec[] {
+async function inferSemanticComponents(doc: Document, root: Element, win: Window): Promise<ComponentSpec[]> {
   const components: ComponentSpec[] = [];
   const candidates = uniqueElements([
     ...Array.from(root.querySelectorAll("nav, header, main, section, article, form, h1, h2, h3")),
     ...Array.from(root.querySelectorAll("[class*='hero' i], [class*='work' i], [class*='project' i], [class*='contact' i], [class*='form' i], [class*='menu' i]"))
   ]).slice(0, MAX_SEMANTIC_CANDIDATES).filter((element) => !isCaptureNoiseElement(element) && (isVisibleElement(element, win) || hasSemanticEvidence(element)));
 
-  for (const element of candidates.slice(0, 48)) {
+  const selected = candidates.slice(0, 48);
+  let sliceStartedAt = win.performance.now();
+  for (let index = 0; index < selected.length; index += 1) {
+    const element = selected[index];
+    if (!element) continue;
     const rect = element.getBoundingClientRect();
     const style = win.getComputedStyle(element);
     const selector = buildSelector(element);
@@ -290,18 +324,26 @@ function inferSemanticComponents(doc: Document, root: Element, win: Window): Com
         border: style.border
       }
     });
+    if ((index + 1) % 16 === 0 && win.performance.now() - sliceStartedAt >= SCAN_SLICE_BUDGET_MS) {
+      await yieldToBrowser(win);
+      sliceStartedAt = win.performance.now();
+    }
   }
 
   return components;
 }
 
-function inferSemanticInteractions(doc: Document, root: Element, win: Window): InteractionSpec[] {
+async function inferSemanticInteractions(doc: Document, root: Element, win: Window): Promise<InteractionSpec[]> {
   const interactions: InteractionSpec[] = [];
   const candidates = Array.from(root.querySelectorAll("a[href], button, input, textarea, select, [role='button'], [role='link'], [tabindex], [aria-expanded], [aria-controls]"))
     .slice(0, MAX_SEMANTIC_CANDIDATES)
     .filter((element) => !isCaptureNoiseElement(element) && (isVisibleElement(element, win) || hasSemanticEvidence(element)));
 
-  for (const element of candidates.slice(0, 80)) {
+  const selected = candidates.slice(0, 80);
+  let sliceStartedAt = win.performance.now();
+  for (let index = 0; index < selected.length; index += 1) {
+    const element = selected[index];
+    if (!element) continue;
     const selector = buildSelector(element);
     const style = win.getComputedStyle(element);
     const tag = element.tagName.toLowerCase();
@@ -327,6 +369,10 @@ function inferSemanticInteractions(doc: Document, root: Element, win: Window): I
       stateSignals,
       transitionProperties: style.transitionProperty.split(",").map((item) => item.trim()).filter(Boolean)
     });
+    if ((index + 1) % 20 === 0 && win.performance.now() - sliceStartedAt >= SCAN_SLICE_BUDGET_MS) {
+      await yieldToBrowser(win);
+      sliceStartedAt = win.performance.now();
+    }
   }
 
   return interactions;

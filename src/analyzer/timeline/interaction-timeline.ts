@@ -503,7 +503,7 @@ export function createInteractionTimelineRecorder(doc: Document, win: Window): T
     const sample: PerformanceTimelineSample = {
       t,
       type,
-      name: entry.name || entry.entryType,
+      name: performanceEntryName(entry, type, win),
       startTime: Math.round(entry.startTime),
       duration: Math.round(entry.duration),
       value: typeof layoutShift.value === "number" ? Math.round(layoutShift.value * 1000) / 1000 : undefined,
@@ -513,7 +513,7 @@ export function createInteractionTimelineRecorder(doc: Document, win: Window): T
     if (performanceEvents.some((item) => `${item.type}|${item.name}|${item.startTime}|${item.duration}|${item.selector ?? ""}` === key)) return;
     performanceEvents.push(sample);
     trim(performanceEvents, MAX_PERFORMANCE_SAMPLES);
-    if (sample.type === "longtask" && sample.duration >= LONG_TASK_DEGRADE_MS) degradeHeavyCapture();
+    if (sample.type === "longtask" && entry.startTime >= startedAt && sample.duration >= LONG_TASK_DEGRADE_MS) degradeHeavyCapture();
   }
 
   return { start, stop, sampleFrame, getPreview };
@@ -563,6 +563,16 @@ function performanceEventType(type: string): PerformanceTimelineSample["type"] |
 function eventTargetSelector(entry: PerformanceEntry, doc: Document) {
   const maybe = entry as PerformanceEntry & { target?: EventTarget | null };
   return maybe.target instanceof Element ? buildSelector(maybe.target) : undefined;
+}
+
+function performanceEntryName(entry: PerformanceEntry, type: PerformanceTimelineSample["type"], win: Window) {
+  if (type !== "resource") return entry.name || entry.entryType;
+  try {
+    const url = new URL(entry.name, win.location.href);
+    return `${url.hostname}${url.pathname}`.slice(0, 240);
+  } catch {
+    return entry.name.split(/[?#]/, 1)[0]?.slice(0, 240) || "resource";
+  }
 }
 
 function compactKeyframes(keyframes: ComputedKeyframe[]) {

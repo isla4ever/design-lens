@@ -1,5 +1,6 @@
 const SELECTOR_PART_LIMIT = 4;
 const NOISE_PATTERN = /(preloader|loader|cookie|consent|gdpr|cmp|modal-backdrop|overlay|design-lens)/i;
+const TRANSIENT_CLASS_PATTERN = /^(?:is-|has-|active$|actived$|current$|selected$|focus(?:ed)?$|hover$|open$|closed$|show$|shown$|hide$|hidden$|loading$|loaded$|disabled$|expanded$|collapsed$)/i;
 
 export function isVisibleElement(element: Element, win: Window) {
   if (isCaptureNoiseElement(element)) return false;
@@ -54,21 +55,21 @@ export function buildSelector(element: Element) {
 
   const parts: string[] = [];
   let current: Element | null = element;
+  const ownerDocument = element.ownerDocument;
 
-  while (current && parts.length < SELECTOR_PART_LIMIT && current !== document.documentElement) {
+  while (current && parts.length < SELECTOR_PART_LIMIT && current !== ownerDocument.documentElement) {
     const tag = current.tagName.toLowerCase();
-    const dataId =
-      current.getAttribute("data-testid") ||
-      current.getAttribute("data-test") ||
-      current.getAttribute("aria-label");
+    const stableAttribute = ["data-testid", "data-test", "aria-label"]
+      .map((name) => ({ name, value: current?.getAttribute(name)?.trim() ?? "" }))
+      .find((item) => item.value && item.value.length <= 160);
 
-    if (dataId) {
-      parts.unshift(`${tag}[${dataId.includes(" ") ? "aria-label" : "data-testid"}="${escapeAttribute(dataId)}"]`);
+    if (stableAttribute) {
+      parts.unshift(`${tag}[${stableAttribute.name}="${escapeAttribute(stableAttribute.value)}"]`);
       break;
     }
 
     const className = Array.from(current.classList)
-      .filter((item) => item && !item.includes(":") && !item.includes("["))
+      .filter((item) => item && !item.includes(":") && !item.includes("[") && !TRANSIENT_CLASS_PATTERN.test(item))
       .slice(0, 2)
       .map((item) => `.${cssEscape(item)}`)
       .join("");

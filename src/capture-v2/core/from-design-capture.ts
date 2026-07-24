@@ -113,6 +113,7 @@ function buildScenes(capture: DesignCapture, fallbackSceneId: string): CapturePr
   const rebuildScenes = capture.rebuildEvidence?.scenes;
   if (rebuildScenes?.length) {
     const motionCheckpoints = buildMotionCheckpoints(capture);
+    const nodeIdBySelector = new Map(capture.components.map((component) => [component.selector, component.id]));
     return rebuildScenes.map((scene) => ({
       id: scene.id,
       name: scene.name,
@@ -124,11 +125,11 @@ function buildScenes(capture: DesignCapture, fallbackSceneId: string): CapturePr
       triggers: scene.phase === "recording-start" || scene.phase === "responsive-initial"
         ? [{ kind: "initial" as const }]
         : scene.phase === "forced-hover" || scene.phase === "observed-hover"
-          ? [{ kind: "hover" as const, ...(scene.selector ? { selector: scene.selector } : {}) }]
+          ? [{ kind: "hover" as const, ...buildSceneTarget(scene.selector, nodeIdBySelector) }]
           : scene.phase === "forced-focus" || scene.phase === "observed-focus"
-            ? [{ kind: "focus" as const, ...(scene.selector ? { selector: scene.selector } : {}) }]
+            ? [{ kind: "focus" as const, ...buildSceneTarget(scene.selector, nodeIdBySelector) }]
             : scene.phase === "observed-open"
-              ? [{ kind: "open" as const, ...(scene.selector ? { selector: scene.selector } : {}) }]
+              ? [{ kind: "open" as const, ...buildSceneTarget(scene.selector, nodeIdBySelector) }]
               : [{ kind: "scroll" as const, value: scene.scroll.y }],
       scroll: scene.scroll,
       capture: {
@@ -159,6 +160,12 @@ function buildScenes(capture: DesignCapture, fallbackSceneId: string): CapturePr
     capturedAt: capture.page.capturedAt,
     status: "captured"
   }];
+}
+
+function buildSceneTarget(selector: string | undefined, nodeIdBySelector: Map<string, string>) {
+  if (!selector) return {};
+  const nodeId = nodeIdBySelector.get(selector);
+  return { selector, ...(nodeId ? { nodeId } : {}) };
 }
 
 function buildStyles(capture: DesignCapture, sceneId: string) {

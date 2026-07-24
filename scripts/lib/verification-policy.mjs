@@ -1,14 +1,33 @@
 export function buildDynamicAnimationSelectors(project) {
-  const checkpointSelectors = new Set((project.motionCheckpoints ?? []).flatMap((checkpoint) =>
+  return Array.from(new Set(buildDynamicAnimationTargets(project).flatMap((target) => target.selector ? [target.selector] : [])));
+}
+
+export function buildDynamicAnimationTargets(project) {
+  const checkpointKeys = new Set((project.motionCheckpoints ?? []).flatMap((checkpoint) =>
     checkpoint.status === "captured"
-      ? checkpoint.animations.flatMap((animation) => animation.selector ? [animation.selector] : [])
+      ? checkpoint.animations.map((animation) => animationTargetKey(animation))
       : []
   ));
-  return Array.from(new Set((project.animations ?? []).flatMap((animation) =>
-    animation.selector && animation.durationMs >= 500 && !checkpointSelectors.has(animation.selector)
-      ? [animation.selector]
-      : []
-  )));
+  const seen = new Set();
+  return (project.animations ?? []).flatMap((animation) => {
+    const key = animationTargetKey(animation);
+    if (animation.durationMs < 500 || checkpointKeys.has(key) || seen.has(key) || (!animation.nodeId && !animation.selector)) return [];
+    seen.add(key);
+    return [{ ...(animation.nodeId ? { nodeId: animation.nodeId } : {}), ...(animation.selector ? { selector: animation.selector } : {}) }];
+  });
+}
+
+export function buildCandidateNodeSelector(nodeId) {
+  if (!nodeId) return undefined;
+  return `[data-design-lens-node-id="${escapeCssAttributeValue(nodeId)}"]`;
+}
+
+function animationTargetKey(animation) {
+  return `${animation.nodeId ?? ""}|${animation.selector ?? ""}`;
+}
+
+function escapeCssAttributeValue(value) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\n\r\f]/g, " ");
 }
 
 export function intersectsViewport(rect, viewport) {

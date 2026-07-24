@@ -16,13 +16,15 @@ export class CaptureBudgetGuard {
   private mutationCount = 0;
   private mutationWindowCount = 0;
   private mutationWindowStartedAt = 0;
+  private observationStartedAt = 0;
   private stormWindows = 0;
   private mutationStorm = false;
 
   constructor(private readonly doc: Document, private readonly win: Window) {}
 
   start() {
-    this.mutationWindowStartedAt = this.win.performance.now();
+    this.observationStartedAt = this.win.performance.now();
+    this.mutationWindowStartedAt = this.observationStartedAt;
     this.startLongTaskObserver();
     this.mutationObserver = new MutationObserver((records) => this.recordMutations(records.length));
     this.mutationObserver.observe(this.doc.documentElement, {
@@ -65,6 +67,7 @@ export class CaptureBudgetGuard {
     try {
       this.longTaskObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
+          if (entry.startTime < this.observationStartedAt) continue;
           this.longTaskCount += 1;
           this.maxLongTaskMs = Math.max(this.maxLongTaskMs, entry.duration);
           if (entry.duration >= LONG_TASK_DEGRADE_MS) this.markDegraded("long-task");

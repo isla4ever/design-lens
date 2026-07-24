@@ -166,7 +166,7 @@ npm run verify:rebuild -- \
 
 验证器只重放 `scene-manifest.json` 中已有证据的 initial、scroll、hover、focus 和 open 状态。输出包括 JSON/HTML 报告、候选截图、差异图和供 Agent 局部修复使用的上下文。
 
-真实长页的捕获、候选实现和误差数据见 [AstroWind 自动重建实战](docs/astrowind-rebuild-benchmark.md)。报告保留失败项，并据此给出下一阶段优先级。
+真实长页的捕获、候选实现和误差数据见 [AstroWind 自动重建实战](docs/astrowind-rebuild-benchmark.md) 与 [Bilibili 首页智能捕获与重建实战](docs/bilibili-rebuild-benchmark.md)。两个案例都保留失败项，并据此给出下一阶段优先级；Bilibili 案例还覆盖了高 mutation 页面下的恢复性与稳定节点验收。
 
 ## 隐私与权限
 
@@ -187,7 +187,7 @@ Design Lens 默认在本地处理和导出证据。只有用户配置模型 Key 
 ```bash
 npm run dev                 # 标准版开发服务器
 npm run dev:collector       # Collector 开发服务器
-npm run check:all           # TypeScript、84 项测试和两种生产构建
+npm run check:all           # TypeScript、90 项测试和两种生产构建
 npm run check:browser       # 真实 MV3 注入、UI 对齐/溢出、20k/100k DOM 性能与恢复探针
 npm run package:release     # 校验权限/版本并生成 ZIP 与 SHA256SUMS
 ```
@@ -220,6 +220,7 @@ docs/               架构、隐私、产品决策和验证记录
 - [隐私与权限](docs/privacy.md)
 - [验证记录](docs/validation.md)
 - [AstroWind 自动重建实战](docs/astrowind-rebuild-benchmark.md)
+- [Bilibili 首页智能捕获与重建实战](docs/bilibili-rebuild-benchmark.md)
 - [变更记录](CHANGELOG.md)
 - [参与贡献](CONTRIBUTING.md)
 - [安全策略](SECURITY.md)

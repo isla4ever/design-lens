@@ -208,7 +208,10 @@ test("rebuild draft requires authorization and exposes planned scenes and accept
   };
   const files = buildRebuildDraftPackFiles(fixture, brief, "zh");
   const byName = Object.fromEntries(files.map((file) => [file.name, file.content]));
-  assert.equal(byName["ai-coding-prompt.md"], undefined);
+  assert.match(byName["skill.md"], /授权重建 Skill/);
+  assert.match(byName["ai-coding-prompt.md"], /授权重建实施 Brief/);
+  assert.match(byName["ai-coding-prompt.md"], /不是风格参考或原创改版任务/);
+  assert.doesNotMatch(byName["ai-coding-prompt.md"], /目标网站实施 Brief/);
   assert.ok(byName["reconstruction-spec.json"]);
   assert.ok(byName["scene-manifest.json"]);
   assert.ok(byName["acceptance.json"]);
@@ -499,7 +502,7 @@ test("scene manifest maps responsive and forced states while leaving unobserved 
   assert.equal(byId["requested-desktop-open"].status, "planned");
   assert.equal(byId["requested-mobile-hover"].status, "planned");
   assert.equal(project.capabilities.multiViewport, true);
-  assert.deepEqual(project.scenes.find((scene) => scene.id === "desktop-hover").triggers, [{ kind: "hover", selector: ".card" }]);
+  assert.deepEqual(project.scenes.find((scene) => scene.id === "desktop-hover").triggers, [{ kind: "hover", nodeId: "card", selector: ".card" }]);
   assert.equal(project.coverage.items.find((item) => item.area === "responsive").status, "complete");
 });
 

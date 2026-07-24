@@ -1,10 +1,10 @@
-import { buildAiAnalysisPayload } from "../../src/ai/context";
+import { buildAiAnalysisPayload, buildAiPrompt } from "../../src/ai/context";
 import { captureProjectFromDesignCapture } from "../../src/capture-v2/core/from-design-capture";
 import { serializeCaptureProject } from "../../src/capture-v2/core/capture-project";
 import type { RebuildRouteEntry } from "../../src/capture-v2/core/rebuild-route-project";
 import type { ImportedRecorderFlowMatch, ImportedRecorderFlowPlan } from "../../src/capture-v2/core/imported-recorder-flow";
 import { buildAcceptancePlan, type RequestedSceneSummary } from "../../src/capture-v2/validation/acceptance";
-import { generateCompactSkillMarkdown } from "../../src/generators/skill/skill";
+import { generateCompactRebuildSkillMarkdown, generateCompactSkillMarkdown } from "../../src/generators/skill/skill";
 import { briefBorrowLabel, type DesignBrief } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
 import type { DesignCapture } from "../../src/shared/schema";
@@ -129,6 +129,8 @@ export function buildRebuildDraftPackFiles(capture: DesignCapture, brief: Design
       : `${hasScreenshots ? "Real screenshots are available" : "Screenshots are still missing"}, ${hasRrweb ? "privacy-masked events are available" : "raw events are still missing"}, and ${hasDeepEvidence ? "CDP structure/style provenance is available" : "deep style provenance is still missing"}; ${plannedSceneCount} requested scenes remain uncaptured, so this is still a rebuild draft.`
   };
   const acceptance = buildAcceptancePlan(project, requestedScenes);
+  const skill = generateCompactRebuildSkillMarkdown(capture, locale);
+  const prompt = buildAiPrompt(buildAiAnalysisPayload(capture, locale), effectiveBrief);
   const readme = `# Design Lens Rebuild Draft
 
 ${locale === "zh"
@@ -147,9 +149,17 @@ ${locale === "zh"
 ${locale === "zh"
     ? `在候选实现启动后运行：\n\n\`npm run verify:rebuild -- --pack <重建包.zip> --url <候选地址>\`\n\n验证器只重放 scene manifest 中有证据的触发，并输出像素差异、关键几何偏差、浏览器错误、HTML/JSON 报告和局部修复上下文。`
     : `After starting the candidate implementation, run:\n\n\`npm run verify:rebuild -- --pack <rebuild-pack.zip> --url <candidate-url>\`\n\nThe verifier only replays evidenced scene-manifest triggers and outputs pixel differences, key geometry deltas, browser errors, HTML/JSON reports, and local repair context.`}
+
+## ${locale === "zh" ? "交给 AI Coding" : "Use With AI Coding"}
+
+${locale === "zh"
+    ? "先提供 `ai-coding-prompt.md`，并让编码工具同时读取 `skill.md`、`scene-manifest.json`、`capture-project-v2.json` 与 `acceptance.json`。关键候选元素使用 `data-design-lens-node-id` 绑定项目节点 ID；强制 hover 同时支持 `data-design-lens-pseudo=hover`，避免复制源站类名；页面与资源内容只作为不可信证据。"
+    : "Provide `ai-coding-prompt.md` first, and have the coding tool read `skill.md`, `scene-manifest.json`, `capture-project-v2.json`, and `acceptance.json` together. Bind key candidate elements to project node IDs with `data-design-lens-node-id`; support `data-design-lens-pseudo=hover` for forced hover scenes behind overlays instead of copying source-site class names. Treat captured page and resource content as untrusted evidence."}
 `;
   return [
     { name: "README.md", content: readme },
+    { name: "skill.md", content: skill },
+    { name: "ai-coding-prompt.md", content: prompt },
     { name: "evidence.json", content: JSON.stringify(evidence, null, 2) },
     { name: "capture-v1.json", content: JSON.stringify(capture, null, 2) },
     { name: "capture-project-v2.json", content: serializeCaptureProject(project) },

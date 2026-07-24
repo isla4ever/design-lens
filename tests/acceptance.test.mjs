@@ -9,7 +9,7 @@ import {
   renderAcceptanceReportHtml
 } from "../src/capture-v2/validation/acceptance.ts";
 import { comparePng } from "../scripts/lib/visual-diff.mjs";
-import { buildDynamicAnimationSelectors, buildTransientEdgeMask, intersectsViewport, isBoundedDynamicMask } from "../scripts/lib/verification-policy.mjs";
+import { buildCandidateNodeSelector, buildDynamicAnimationSelectors, buildDynamicAnimationTargets, buildTransientEdgeMask, intersectsViewport, isBoundedDynamicMask } from "../scripts/lib/verification-policy.mjs";
 
 function projectFixture() {
   return {
@@ -185,14 +185,16 @@ test("pixel comparison detects differences and honors dynamic masks", () => {
 test("verification policy masks only bounded unverified animation regions", () => {
   const project = {
     animations: [
-      { selector: ".slow", durationMs: 1000 },
-      { selector: ".slow", durationMs: 1000 },
+      { nodeId: "hero", selector: ".slow", durationMs: 1000 },
+      { nodeId: "hero", selector: ".slow", durationMs: 1000 },
       { selector: ".quick", durationMs: 200 },
       { selector: ".verified", durationMs: 800 }
     ],
     motionCheckpoints: [{ status: "captured", animations: [{ selector: ".verified" }] }]
   };
   assert.deepEqual(buildDynamicAnimationSelectors(project), [".slow"]);
+  assert.deepEqual(buildDynamicAnimationTargets(project), [{ nodeId: "hero", selector: ".slow" }]);
+  assert.equal(buildCandidateNodeSelector('hero"card'), '[data-design-lens-node-id="hero\\"card"]');
   const viewport = { width: 1000, height: 800 };
   assert.equal(intersectsViewport({ x: 20, y: 20, width: 100, height: 100 }, viewport), true);
   assert.equal(intersectsViewport({ x: 20, y: 900, width: 100, height: 100 }, viewport), false);

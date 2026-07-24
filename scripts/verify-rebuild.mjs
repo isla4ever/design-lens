@@ -11,7 +11,7 @@ import {
   renderAcceptanceReportHtml
 } from "../src/capture-v2/validation/acceptance.ts";
 import { comparePng, cssRectsToPixelRects } from "./lib/visual-diff.mjs";
-import { buildDynamicAnimationSelectors, buildTransientEdgeMask, intersectsViewport, isBoundedDynamicMask } from "./lib/verification-policy.mjs";
+import { buildCandidateNodeSelector, buildDynamicAnimationTargets, buildTransientEdgeMask, intersectsViewport, isBoundedDynamicMask } from "./lib/verification-policy.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help) {
@@ -35,7 +35,7 @@ const rules = {
   ...(args.colorThreshold !== undefined ? { pixelColorThreshold: args.colorThreshold } : {}),
   ...(args.geometryTolerance !== undefined ? { keyElementGeometryToleranceCssPx: args.geometryTolerance } : {})
 };
-const dynamicAnimationSelectors = buildDynamicAnimationSelectors(project);
+const dynamicAnimationTargets = buildDynamicAnimationTargets(project);
 const outputDir = path.resolve(args.output ?? `design-lens-acceptance-${Date.now()}`);
 const sceneOutputDir = path.join(outputDir, "scenes");
 await fs.mkdir(sceneOutputDir, { recursive: true });
@@ -45,7 +45,7 @@ const results = [];
 try {
   const scenes = project.scenes.filter((scene) => scene.status === "captured" && scene.screenshotArtifactId);
   for (const scene of scenes) {
-    results.push(...await verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors: args.masks, dynamicAnimationSelectors }));
+    results.push(...await verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors: args.masks, dynamicAnimationTargets }));
   }
 } finally {
   await browser.close();
@@ -60,7 +60,7 @@ await Promise.all([
 console.log(JSON.stringify({ status: report.status, outputDir, summary: report.summary }, null, 2));
 if (report.status !== "passed") process.exitCode = 2;
 
-async function verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors, dynamicAnimationSelectors }) {
+async function verifyScene({ browser, candidateUrl, pack, project, scene, rules, sceneOutputDir, maskSelectors, dynamicAnimationTargets }) {
   const base = {
     id: scene.id,
     name: scene.name,
@@ -125,7 +125,8 @@ async function verifyScene({ browser, candidateUrl, pack, project, scene, rules,
     for (const node of Object.values(project.nodes).slice(0, 80)) {
       const expected = node.rectByScene[scene.id];
       if (!expected || !node.selector || !intersectsViewport(expected, scene.viewport)) continue;
-      const actualBox = await page.locator(node.selector).first().boundingBox().catch(() => null);
+      const locator = await locateCandidateNode(page, node.id, node.selector);
+      const actualBox = await locator?.boundingBox().catch(() => null);
       const actual = actualBox ? { x: actualBox.x, y: actualBox.y, width: actualBox.width, height: actualBox.height } : undefined;
       geometryItems.push(compareGeometry(node.id, node.selector, expected, actual, rules.keyElementGeometryToleranceCssPx));
     }
@@ -135,8 +136,9 @@ async function verifyScene({ browser, candidateUrl, pack, project, scene, rules,
       const node = project.nodes[nodeId];
       const expected = node?.rectByScene[scene.id];
       if (expected) cssMaskRects.push(expected);
-      if (node?.selector) {
-        const actual = await page.locator(node.selector).first().boundingBox().catch(() => null);
+      if (node?.selector || node?.id) {
+        const locator = await locateCandidateNode(page, node.id, node.selector);
+        const actual = await locator?.boundingBox().catch(() => null);
         if (actual) cssMaskRects.push(actual);
       }
     }
@@ -147,11 +149,12 @@ async function verifyScene({ browser, candidateUrl, pack, project, scene, rules,
       })).catch(() => []);
       cssMaskRects.push(...boxes);
     }
-    for (const selector of dynamicAnimationSelectors) {
-      const boxes = await page.locator(selector).evaluateAll((elements) => elements.slice(0, 24).map((element) => {
+    for (const target of dynamicAnimationTargets) {
+      const locator = await locateCandidateNode(page, target.nodeId, target.selector);
+      const boxes = await locator?.evaluateAll((elements) => elements.slice(0, 24).map((element) => {
         const rect = element.getBoundingClientRect();
         return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-      })).catch(() => []);
+      })).catch(() => []) ?? [];
       cssMaskRects.push(...boxes.filter((box) => isBoundedDynamicMask(box, scene.viewport)));
     }
     const transientEdgeMask = buildTransientEdgeMask(scene);
@@ -312,8 +315,9 @@ async function verifyMotionCheckpoints({ page, pack, project, scene, rules, scen
         const node = project.nodes[nodeId];
         const expected = node?.rectByScene[scene.id];
         if (expected) cssMaskRects.push(expected);
-        if (node?.selector) {
-          const actual = await page.locator(node.selector).first().boundingBox().catch(() => null);
+        if (node?.selector || node?.id) {
+          const locator = await locateCandidateNode(page, node.id, node.selector);
+          const actual = await locator?.boundingBox().catch(() => null);
           if (actual) cssMaskRects.push(actual);
         }
       }
@@ -353,6 +357,10 @@ async function verifyMotionCheckpoints({ page, pack, project, scene, rules, scen
 }
 
 async function startMotionSession(page, descriptors) {
+  const candidateDescriptors = descriptors.map((descriptor) => ({
+    ...descriptor,
+    candidateSelector: buildCandidateNodeSelector(descriptor.nodeId) ?? descriptor.selector
+  }));
   return page.evaluate((items) => {
     const animations = document.getAnimations({ subtree: true });
     const used = new Set();
@@ -363,7 +371,7 @@ async function startMotionSession(page, descriptors) {
       const candidates = animations.filter((animation) => {
         if (used.has(animation)) return false;
         const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null;
-        return target instanceof Element && item.selector && target.matches(item.selector);
+        return target instanceof Element && item.candidateSelector && target.matches(item.candidateSelector);
       });
       const preferred = candidates.find((animation) => animationName(animation) === item.name) ?? candidates[0];
       if (!preferred) {
@@ -382,7 +390,7 @@ async function startMotionSession(page, descriptors) {
       if ("transitionProperty" in animation && typeof animation.transitionProperty === "string") return animation.transitionProperty;
       return animation.id || "anonymous";
     }
-  }, descriptors);
+  }, candidateDescriptors);
 }
 
 async function seekMotionSession(page, progress) {
@@ -444,6 +452,7 @@ async function replayScene(page, scene) {
       const y = typeof trigger.value === "number" ? trigger.value : 0;
       await page.evaluate((scrollY) => window.scrollTo({ left: 0, top: scrollY, behavior: "instant" }), y);
       await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await page.evaluate(() => document.documentElement.setAttribute("data-design-lens-scroll-state", window.scrollY > 0 ? "scrolled" : "top"));
       if (scene.id.includes("page-baseline")) await page.waitForTimeout(320);
       continue;
     }
@@ -451,10 +460,16 @@ async function replayScene(page, scene) {
       await page.waitForTimeout(typeof trigger.value === "number" ? trigger.value : 100);
       continue;
     }
-    if (!trigger.selector) return { ok: false, skipped: true, reason: `${trigger.kind} has no selector in the scene manifest.` };
-    const target = page.locator(trigger.selector).first();
-    if (trigger.kind === "hover") await target.hover({ timeout: 5_000 });
-    if (trigger.kind === "focus") await target.focus({ timeout: 5_000 });
+    if (!trigger.nodeId && !trigger.selector) return { ok: false, skipped: true, reason: `${trigger.kind} has no node id or selector in the scene manifest.` };
+    const target = await locateCandidateNode(page, trigger.nodeId, trigger.selector);
+    if (!target) return { ok: false, skipped: true, reason: `${trigger.kind} target is missing in the candidate.` };
+    if (trigger.kind === "hover") {
+      await target.evaluate((element) => {
+        element.setAttribute("data-design-lens-pseudo", "hover");
+        element.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, clientX: 0, clientY: 0 }));
+      });
+    }
+    if (trigger.kind === "focus") await target.evaluate((element) => element.focus({ preventScroll: true }));
     if (trigger.kind === "click") await target.click({ timeout: 5_000 });
     if (trigger.kind === "open") {
       const isOpen = await target.evaluate((element) => {
@@ -465,6 +480,15 @@ async function replayScene(page, scene) {
     }
   }
   return { ok: true };
+}
+
+async function locateCandidateNode(page, nodeId, fallbackSelector) {
+  const stableSelector = buildCandidateNodeSelector(nodeId);
+  if (stableSelector) {
+    const stable = page.locator(stableSelector).first();
+    if (await stable.count().catch(() => 0)) return stable;
+  }
+  return fallbackSelector ? page.locator(fallbackSelector).first() : undefined;
 }
 
 async function openPack(packPath, prefix = "") {

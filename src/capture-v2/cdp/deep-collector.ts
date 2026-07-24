@@ -173,10 +173,7 @@ export async function collectDeepCdpEvidence(
   for (const request of uniqueNodes(nodes).slice(0, 24)) {
     try {
       const query = await command<{ nodeId?: number }>("DOM.querySelector", { nodeId: rootNodeId, selector: request.selector });
-      if (!query.nodeId) {
-        errors.push(`${request.selector}: selector did not match a node`);
-        continue;
-      }
+      if (!query.nodeId) continue;
       const [description, computedResult, matchedResult, boxResult] = await Promise.all([
         command<{ node?: { backendNodeId?: number; nodeName?: string } }>("DOM.describeNode", { nodeId: query.nodeId, depth: 0 }),
         command<{ computedStyle?: Array<{ name?: string; value?: string }> }>("CSS.getComputedStyleForNode", { nodeId: query.nodeId }),
@@ -384,7 +381,17 @@ function sanitizeCssValue(value: string) {
 
 function sanitizeSourceUrl(value: string) {
   if (/^data:/i.test(value)) return "data:[omitted]";
-  return value.slice(0, 2000);
+  if (/^blob:/i.test(value)) return "blob:[omitted]";
+  try {
+    const url = new URL(value);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    url.hash = "";
+    return url.href.slice(0, 2000);
+  } catch {
+    return value.split(/[?#]/, 1)[0]?.slice(0, 2000) ?? "";
+  }
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

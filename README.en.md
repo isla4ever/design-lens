@@ -168,7 +168,7 @@ npm run verify:rebuild -- \
 
 The verifier replays only initial, scroll, hover, focus, and open states supported by `scene-manifest.json`. It produces JSON/HTML reports, candidate screenshots, diffs, and focused repair context for an agent.
 
-See the [AstroWind reconstruction benchmark](docs/astrowind-rebuild-benchmark.md) for real long-page capture, candidate, and error measurements. The report keeps failed cases visible and uses them to prioritize the next development stage.
+See the [AstroWind reconstruction benchmark](docs/astrowind-rebuild-benchmark.md) and the [Bilibili homepage capture and reconstruction benchmark](docs/bilibili-rebuild-benchmark.md) for real capture, candidate, and error measurements. Both reports keep failed cases visible; the Bilibili case also exercises recovery on a high-mutation page and stable-node acceptance.
 
 ## Privacy And Permissions
 
@@ -189,7 +189,7 @@ Local Rebuild packs may contain visible page text, screenshots, and sanitized DO
 ```bash
 npm run dev                 # Standard development server
 npm run dev:collector       # Collector development server
-npm run check:all           # TypeScript, 84 tests, and both production builds
+npm run check:all           # TypeScript, 90 tests, and both production builds
 npm run check:browser       # Real MV3 injection, UI alignment/overflow, and 20k/100k DOM recovery probes
 npm run package:release     # Permission/version validation, ZIPs, and SHA256SUMS
 ```
@@ -222,6 +222,7 @@ docs/               Architecture, privacy, product decisions, and validation rec
 - [Privacy And Permissions](docs/privacy.md)
 - [Validation](docs/validation.md)
 - [AstroWind reconstruction benchmark](docs/astrowind-rebuild-benchmark.md)
+- [Bilibili homepage capture and reconstruction benchmark](docs/bilibili-rebuild-benchmark.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
