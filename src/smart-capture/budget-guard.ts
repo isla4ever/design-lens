@@ -1,4 +1,4 @@
-import type { SmartCaptureBudgetSummary } from "./types";
+import type { SmartCaptureBudgetSummary, SmartCaptureSafetyLevel } from "./types";
 
 const LONG_TASK_DEGRADE_MS = 50;
 const EXTREME_TASK_MS = 200;
@@ -6,6 +6,12 @@ const MUTATION_SOFT_LIMIT = 750;
 const MUTATION_HARD_LIMIT = 10_000;
 const MUTATION_STORM_RATE = 500;
 const MUTATION_STORM_WINDOWS = 2;
+const SAFETY_LEVEL_ORDER: Record<SmartCaptureSafetyLevel, number> = {
+  normal: 0,
+  reduced: 1,
+  "snapshot-only": 2,
+  stopped: 3
+};
 
 export class CaptureBudgetGuard {
   private longTaskObserver: PerformanceObserver | null = null;
@@ -19,8 +25,13 @@ export class CaptureBudgetGuard {
   private observationStartedAt = 0;
   private stormWindows = 0;
   private mutationStorm = false;
+  private safetyLevel: SmartCaptureSafetyLevel = "normal";
 
-  constructor(private readonly doc: Document, private readonly win: Window) {}
+  constructor(
+    private readonly doc: Document,
+    private readonly win: Window,
+    private readonly onSafetyLevelChange?: (level: SmartCaptureSafetyLevel, reason: string) => void
+  ) {}
 
   start() {
     this.observationStartedAt = this.win.performance.now();
@@ -43,17 +54,25 @@ export class CaptureBudgetGuard {
     return this.snapshot();
   }
 
-  markDegraded(reason: string) {
+  markDegraded(reason: string, level: SmartCaptureSafetyLevel = "reduced") {
     this.reasons.add(reason);
+    if (SAFETY_LEVEL_ORDER[level] <= SAFETY_LEVEL_ORDER[this.safetyLevel]) return;
+    this.safetyLevel = level;
+    this.onSafetyLevelChange?.(level, reason);
   }
 
   isDegraded() {
     return this.reasons.size > 0;
   }
 
+  getSafetyLevel() {
+    return this.safetyLevel;
+  }
+
   snapshot(): SmartCaptureBudgetSummary {
     return {
       degraded: this.isDegraded(),
+      safetyLevel: this.safetyLevel,
       reasons: Array.from(this.reasons),
       longTaskCount: this.longTaskCount,
       maxLongTaskMs: Math.round(this.maxLongTaskMs),
@@ -70,8 +89,8 @@ export class CaptureBudgetGuard {
           if (entry.startTime < this.observationStartedAt) continue;
           this.longTaskCount += 1;
           this.maxLongTaskMs = Math.max(this.maxLongTaskMs, entry.duration);
-          if (entry.duration >= LONG_TASK_DEGRADE_MS) this.markDegraded("long-task");
-          if (entry.duration >= EXTREME_TASK_MS) this.markDegraded("extreme-long-task");
+          if (entry.duration >= LONG_TASK_DEGRADE_MS) this.markDegraded("long-task", "reduced");
+          if (entry.duration >= EXTREME_TASK_MS) this.markDegraded("extreme-long-task", "stopped");
         }
       });
       this.longTaskObserver.observe({ type: "longtask", buffered: true });
@@ -83,9 +102,9 @@ export class CaptureBudgetGuard {
   private recordMutations(count: number) {
     this.mutationCount += count;
     this.mutationWindowCount += count;
-    if (this.mutationCount >= MUTATION_SOFT_LIMIT) this.markDegraded("high-mutation-volume");
+    if (this.mutationCount >= MUTATION_SOFT_LIMIT) this.markDegraded("high-mutation-volume", "reduced");
     if (this.mutationCount >= MUTATION_HARD_LIMIT) {
-      this.markDegraded("mutation-hard-limit");
+      this.markDegraded("mutation-hard-limit", "stopped");
       this.mutationObserver?.disconnect();
       return;
     }
@@ -99,7 +118,7 @@ export class CaptureBudgetGuard {
     this.mutationWindowStartedAt = now;
     if (this.stormWindows >= MUTATION_STORM_WINDOWS) {
       this.mutationStorm = true;
-      this.markDegraded("mutation-storm");
+      this.markDegraded("mutation-storm", "snapshot-only");
       this.mutationObserver?.disconnect();
     }
   }

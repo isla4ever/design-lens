@@ -7,6 +7,8 @@ import { matchImportedRecorderFlowPlan, parseImportedRecorderFlowMatch, parseImp
 const DEFAULT_DATABASE_NAME = "design-lens-captures";
 const DATABASE_VERSION = 3;
 const MAX_WORKSPACE_CAPTURES = 8;
+export const MAX_ARTIFACT_BYTES = 24 * 1024 * 1024;
+export const MAX_PROJECT_ARTIFACT_BYTES = 96 * 1024 * 1024;
 
 export type ArtifactPayload = string | Uint8Array | ArrayBuffer | Blob;
 
@@ -84,6 +86,9 @@ export class CaptureProjectStore {
   async putArtifact(input: PutArtifactInput) {
     const database = await this.getDatabase();
     const blob = toBlob(input.data, input.mediaType);
+    if (blob.size > MAX_ARTIFACT_BYTES) {
+      throw new Error(`Artifact exceeds the ${formatMegabytes(MAX_ARTIFACT_BYTES)} MB per-file safety limit.`);
+    }
     const artifact: StoredArtifact = {
       key: artifactKey(input.projectId, input.artifactId),
       projectId: input.projectId,
@@ -95,7 +100,24 @@ export class CaptureProjectStore {
       blob,
       createdAt: input.createdAt ?? new Date().toISOString()
     };
-    await database.put("artifacts", artifact);
+    try {
+      const transaction = database.transaction("artifacts", "readwrite");
+      const artifactStore = transaction.objectStore("artifacts");
+      const [existing, projectArtifacts] = await Promise.all([
+        artifactStore.get(artifact.key),
+        artifactStore.index("by-project").getAll(input.projectId)
+      ]);
+      const projectBytes = projectArtifacts.reduce((total, item) => total + item.size, 0) - (existing?.size ?? 0) + artifact.size;
+      if (projectBytes > MAX_PROJECT_ARTIFACT_BYTES) {
+        transaction.abort();
+        await transaction.done.catch(() => undefined);
+        throw new Error(`Capture evidence exceeds the ${formatMegabytes(MAX_PROJECT_ARTIFACT_BYTES)} MB project safety limit. Delete an older result or capture fewer states.`);
+      }
+      await artifactStore.put(artifact);
+      await transaction.done;
+    } catch (error) {
+      throw normalizeStorageError(error);
+    }
     return artifact;
   }
 
@@ -116,14 +138,8 @@ export class CaptureProjectStore {
 
   async deleteProject(projectId: string) {
     const database = await this.getDatabase();
-    const transaction = database.transaction(["projects", "artifacts"], "readwrite");
-    const artifactStore = transaction.objectStore("artifacts");
-    const artifactKeys = await artifactStore.index("by-project").getAllKeys(projectId);
-    await Promise.all([
-      transaction.objectStore("projects").delete(projectId),
-      ...artifactKeys.map((key) => artifactStore.delete(key))
-    ]);
-    await transaction.done;
+    await database.delete("projects", projectId);
+    await this.deleteArtifactsIfOrphaned(projectId);
   }
 
   async putWorkspaceCapture(tabId: number, capture: DesignCapture) {
@@ -150,7 +166,14 @@ export class CaptureProjectStore {
     };
     await database.put("workspaceCaptures", record);
     const records = (await database.getAllFromIndex("workspaceCaptures", "by-updated-at")).reverse();
-    await Promise.all(records.slice(MAX_WORKSPACE_CAPTURES).map((item) => database.delete("workspaceCaptures", item.id)));
+    const evicted = records.slice(MAX_WORKSPACE_CAPTURES);
+    await Promise.all(evicted.map((item) => database.delete("workspaceCaptures", item.id)));
+    const previousStorageProjectId = existing ? getStorageProjectId(existing) : undefined;
+    const cleanupCandidates = new Set([
+      ...evicted.map(getStorageProjectId),
+      ...(previousStorageProjectId && previousStorageProjectId !== getStorageProjectId(record) ? [previousStorageProjectId] : [])
+    ].filter((value): value is string => Boolean(value)));
+    for (const storageProjectId of cleanupCandidates) await this.deleteArtifactsIfOrphaned(storageProjectId);
     return record;
   }
 
@@ -168,7 +191,10 @@ export class CaptureProjectStore {
 
   async deleteWorkspaceCapture(id: string) {
     const database = await this.getDatabase();
+    const record = await database.get("workspaceCaptures", id);
     await database.delete("workspaceCaptures", id);
+    const storageProjectId = record ? getStorageProjectId(record) : undefined;
+    if (storageProjectId) await this.deleteArtifactsIfOrphaned(storageProjectId);
   }
 
   async setWorkspaceRecorderFlow(id: string, flow: ImportedRecorderFlowPlan | null) {
@@ -229,7 +255,11 @@ export class CaptureProjectStore {
 
   async clearWorkspaceCaptures() {
     const database = await this.getDatabase();
+    const records = await database.getAll("workspaceCaptures");
     await database.clear("workspaceCaptures");
+    for (const storageProjectId of new Set(records.map(getStorageProjectId).filter((value): value is string => Boolean(value)))) {
+      await this.deleteArtifactsIfOrphaned(storageProjectId);
+    }
   }
 
   async clear() {
@@ -277,6 +307,18 @@ export class CaptureProjectStore {
     }
     return this.databasePromise;
   }
+
+  private async deleteArtifactsIfOrphaned(storageProjectId: string) {
+    const database = await this.getDatabase();
+    const records = await database.getAll("workspaceCaptures");
+    if (records.some((record) => getStorageProjectId(record) === storageProjectId)) return;
+    if (await database.get("projects", storageProjectId)) return;
+    const transaction = database.transaction("artifacts", "readwrite");
+    const artifactStore = transaction.objectStore("artifacts");
+    const keys = await artifactStore.index("by-project").getAllKeys(storageProjectId);
+    await Promise.all(keys.map((key) => artifactStore.delete(key)));
+    await transaction.done;
+  }
 }
 
 function workspaceCaptureId(tabId: number, capture: DesignCapture) {
@@ -321,4 +363,19 @@ function toBlob(data: ArtifactPayload, mediaType: string) {
   const copy = new Uint8Array(data.byteLength);
   copy.set(data);
   return new Blob([copy.buffer], { type: mediaType });
+}
+
+function getStorageProjectId(record: WorkspaceCaptureRecord) {
+  return record.capture.rebuildEvidence?.storageProjectId;
+}
+
+function normalizeStorageError(error: unknown) {
+  if (error instanceof Error && error.name === "QuotaExceededError") {
+    return new Error("Browser storage is full. Delete older Design Lens results, then retry the capture.");
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function formatMegabytes(bytes: number) {
+  return Math.round(bytes / (1024 * 1024));
 }

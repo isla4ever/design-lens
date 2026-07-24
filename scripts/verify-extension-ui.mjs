@@ -82,12 +82,28 @@ try {
       const unnamedButtons = visibleButtons.flatMap((button) =>
         button.getAttribute("aria-label") || button.textContent?.trim() ? [] : [button.outerHTML.slice(0, 120)]
       );
+      const clippedButtonLabels = visibleButtons.flatMap((button) => {
+        const label = button.querySelector(":scope > span");
+        if (!label) return [];
+        return label.scrollWidth > label.clientWidth + 1
+          ? [button.getAttribute("aria-label") || button.textContent?.trim()]
+          : [];
+      });
+      const silentlyTruncatedText = Array.from(document.querySelectorAll(".status, .workspace-notice span, .workspace-task strong, .workspace-task span, .configuration-guide strong, .configuration-guide span, .authorization-prompt p")).flatMap((element) => {
+        const style = getComputedStyle(element);
+        const isClipped = element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1;
+        return isClipped && (style.overflow === "hidden" || style.textOverflow === "ellipsis")
+          ? [element.textContent?.trim()]
+          : [];
+      });
       return {
         documentOverflowX: document.documentElement.scrollWidth > window.innerWidth,
         mainOverflowX: main ? main.scrollWidth > main.clientWidth : true,
         misaligned,
         wrappingButtons,
-        unnamedButtons
+        unnamedButtons,
+        clippedButtonLabels,
+        silentlyTruncatedText
       };
     });
 
@@ -96,6 +112,8 @@ try {
     if (layout.misaligned.length) throw new Error(`${fixture.name} has misaligned icons: ${JSON.stringify(layout.misaligned)}`);
     if (layout.wrappingButtons.length) throw new Error(`${fixture.name} has wrapping button labels: ${layout.wrappingButtons.join(", ")}`);
     if (layout.unnamedButtons.length) throw new Error(`${fixture.name} has unnamed buttons`);
+    if (layout.clippedButtonLabels.length) throw new Error(`${fixture.name} has clipped button labels: ${layout.clippedButtonLabels.join(", ")}`);
+    if (layout.silentlyTruncatedText.length) throw new Error(`${fixture.name} silently truncates critical text: ${layout.silentlyTruncatedText.join(" | ")}`);
 
     const screenshot = join(outputDir, `${fixture.name}.png`);
     await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled" });

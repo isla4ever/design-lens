@@ -324,10 +324,8 @@ p {
   line-height: 1.3;
   min-height: 32px;
   min-width: 0;
-  overflow: hidden;
   padding: 7px 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .status.live {
@@ -372,9 +370,7 @@ p {
   color: var(--muted);
   font-size: 9px;
   line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .authorization-dismiss {
@@ -459,11 +455,12 @@ p {
   white-space: nowrap;
 }
 
-.compact-outcome.complete {
+.compact-outcome.reference-ready,
+.compact-outcome.rebuild-ready {
   color: var(--accent-strong);
 }
 
-.compact-outcome.degraded {
+.compact-outcome.needs-capture {
   color: var(--info);
 }
 

@@ -5,10 +5,12 @@ import type { CdpProtocolEvent } from "../src/capture-v2/cdp/deep-collector";
 import { sanitizeDomSnapshot } from "../src/capture-v2/cdp/dom-snapshot-privacy";
 import { withCdpSession, type CdpTransport } from "../src/capture-v2/cdp/cdp-session";
 import { CaptureProjectStore, type StoredArtifact } from "../src/storage/capture-project-store";
+import { serializeJsonArtifact } from "../src/storage/artifact-serialization";
 import type { ArtifactStorageRequest, ArtifactStorageResponse, DeepCaptureRequest, DeepCaptureResponse, WorkspaceRequest, WorkspaceResponse } from "../src/shared/messages";
 import { ensureDesignLensPageBridge } from "../src/shared/page-bridge";
 
 const captureVisibleTabQueue = createCaptureVisibleTabQueue();
+const MAX_RRWEB_ARTIFACT_BYTES = 8 * 1024 * 1024;
 
 export default defineBackground(() => {
   const store = new CaptureProjectStore();
@@ -370,13 +372,14 @@ async function storeRrwebArtifact(
   store: CaptureProjectStore
 ): Promise<ArtifactStorageResponse> {
   try {
+    const { content } = serializeJsonArtifact(message.payload, MAX_RRWEB_ARTIFACT_BYTES, "Interaction recording");
     const stored = await store.putArtifact({
       projectId: message.storageProjectId,
       artifactId: message.artifactId,
       kind: "rrweb",
       name: message.name,
       mediaType: "application/json",
-      data: message.content,
+      data: content,
       createdAt: message.createdAt
     });
     return { ok: true, artifact: toArtifactReference(stored) };

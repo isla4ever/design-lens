@@ -63,7 +63,7 @@ export type ArtifactStorageRequest =
       storageProjectId: string;
       artifactId: string;
       name: string;
-      content: string;
+      payload: unknown;
       createdAt: string;
     };
 

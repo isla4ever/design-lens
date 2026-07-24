@@ -4,7 +4,7 @@ import { formatPatternName } from "../../src/generators/skill/skill-pattern-labe
 import type { DesignBrief } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
 import type { DesignCapture } from "../../src/shared/schema";
-import { formatSmartCaptureOutcome } from "../../src/smart-capture/presentation";
+import { formatCaptureReadiness, getCaptureReadiness } from "../../src/smart-capture/readiness";
 import type { PackKind } from "./types";
 
 export function ResultPanel({ capture, locale, isBusy, hasAiKey, brief, lastPackKind, onGenerate, onExportEvidence, onDownloadPack, onImproveCoverage, onOpenWorkspace }: {
@@ -24,13 +24,15 @@ export function ResultPanel({ capture, locale, isBusy, hasAiKey, brief, lastPack
   const needsRebuildAuthorization = isRebuild && !brief.rebuild.authorizationConfirmed;
   const taskCount = capture.smartCapture?.tasks.length ?? 0;
   const summary = summarizeResult(capture, locale);
+  const readiness = getCaptureReadiness(capture);
+  const readinessCopy = formatCaptureReadiness(readiness, locale);
 
   return (
     <section className="result-panel">
       <div className="result-brief">
         <div className="result-brief-head">
           <strong><Zap aria-hidden="true" />{isRebuild ? (locale === "zh" ? "重建草稿" : "Rebuild draft") : (locale === "zh" ? "设计参照" : "Reference")}</strong>
-          {capture.smartCapture ? <span className={`compact-outcome ${capture.smartCapture.outcome}`}>{formatSmartCaptureOutcome(capture.smartCapture.outcome, locale)}{taskCount ? ` · ${taskCount}` : ""}</span> : null}
+          <span className={`compact-outcome ${readiness}`} title={readinessCopy.description}>{readinessCopy.title}{taskCount ? ` · ${taskCount}` : ""}</span>
         </div>
         <p>{summary}</p>
       </div>

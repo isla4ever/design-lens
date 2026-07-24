@@ -12,6 +12,8 @@ export type SmartCapturePhase =
   | "cancelled"
   | "error";
 
+export type SmartCaptureSafetyLevel = "normal" | "reduced" | "snapshot-only" | "stopped";
+
 export type SmartCaptureTaskKind =
   | "record-interactions"
   | "capture-component"
@@ -48,6 +50,7 @@ export type SmartCapturePreflight = {
 
 export type SmartCaptureBudgetSummary = {
   degraded: boolean;
+  safetyLevel: SmartCaptureSafetyLevel;
   reasons: string[];
   longTaskCount: number;
   maxLongTaskMs: number;

@@ -187,7 +187,7 @@ Design Lens 默认在本地处理和导出证据。只有用户配置模型 Key 
 ```bash
 npm run dev                 # 标准版开发服务器
 npm run dev:collector       # Collector 开发服务器
-npm run check:all           # TypeScript、90 项测试和两种生产构建
+npm run check:all           # TypeScript、100 项测试和两种生产构建
 npm run check:browser       # 真实 MV3 注入、UI 对齐/溢出、20k/100k DOM 性能与恢复探针
 npm run package:release     # 校验权限/版本并生成 ZIP 与 SHA256SUMS
 ```

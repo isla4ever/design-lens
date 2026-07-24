@@ -378,7 +378,7 @@ function Popup() {
         </button>
         <button className="secondary-action" onClick={requestSectionPick} disabled={isBusy || status === "recording"}>
           <Crosshair aria-hidden="true" />
-          <span>{locale === "zh" ? "选取组件" : "Pick component"}</span>
+          <span>{locale === "zh" ? "选取组件" : "Pick area"}</span>
         </button>
       </section>
 

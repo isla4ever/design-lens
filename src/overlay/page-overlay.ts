@@ -10,7 +10,7 @@ import { getStoredTheme, type ThemeMode } from "../shared/theme-storage";
 import { getStoredLocale } from "../shared/locale-storage";
 import type { ArtifactStorageRequest, ArtifactStorageResponse, CaptureResponse, DeepCaptureRequest, DeepCaptureResponse, GuidedCaptureTask, ScanMode } from "../shared/messages";
 import type { DesignCapture, InteractionTimeline } from "../shared/schema";
-import { runSmartCapture } from "../smart-capture/orchestrator";
+import { runSmartCapture, type SmartCaptureExecutionContext } from "../smart-capture/orchestrator";
 import type { SmartCaptureStatus } from "../smart-capture/types";
 import { createGuidedTaskObserver, type GuidedTaskEvidence } from "../smart-capture/guided-task-observer";
 import {
@@ -176,11 +176,11 @@ export function createPageOverlay(actions: OverlayActions) {
       mode: recordingMode,
       ...(recordingMode === "rebuild" ? { rebuild: rebuildPlan } : {}),
       signal: controller.signal,
-      startRecording: async () => {
-        await startRecording();
+      startRecording: async (context) => {
+        await startRecording(context);
         if (!recordingStartedAt) throw new Error(locale === "zh" ? "智能捕获未能启动录制器。" : "Smart Capture could not start the recorder.");
       },
-      finishRecording: () => stopRecording({ keepMinimal: true }),
+      finishRecording: (context) => stopRecording({ keepMinimal: true, persistCapture: false }, context),
       onStatus: (status) => {
         smartCaptureStatus = status;
         if (host && status.phase !== "complete" && status.phase !== "degraded" && status.phase !== "cancelled") renderSmartCapture();
@@ -345,7 +345,7 @@ export function createPageOverlay(actions: OverlayActions) {
     return response;
   }
 
-  async function startRecording() {
+  async function startRecording(context?: SmartCaptureExecutionContext) {
     if (recordingStartedAt) {
       if (smartCapturePromise) renderSmartCapture();
       else renderRecorder(true);
@@ -356,7 +356,7 @@ export function createPageOverlay(actions: OverlayActions) {
       renderError(error);
       throw new Error(error);
     }
-    recordingPreparation = prepareRecording();
+    recordingPreparation = prepareRecording(context);
     try {
       await recordingPreparation;
     } catch (error) {
@@ -368,7 +368,7 @@ export function createPageOverlay(actions: OverlayActions) {
     }
   }
 
-  async function prepareRecording() {
+  async function prepareRecording(context?: SmartCaptureExecutionContext) {
     recordingStartedAt = performance.now();
     recordedCaptures = [];
     recordedTimeline = undefined;
@@ -377,12 +377,18 @@ export function createPageOverlay(actions: OverlayActions) {
     if (smartCapturePromise) renderSmartCapture();
     else renderRecorder(true);
     if (recordingMode === "rebuild") {
-      await startRebuildRecording();
+      await startRebuildRecording(context);
     }
-    timelineRecorder = createInteractionTimelineRecorder(document, window);
-    timelineRecorder.start();
-    await sampleRecording();
-    if (recordingMode === "rebuild") {
+    if (!shouldSkipAdvancedCapture(context)) {
+      timelineRecorder = createInteractionTimelineRecorder(document, window);
+      timelineRecorder.start();
+    }
+    if (shouldStopPageWork(context)) {
+      recordedCaptures = [getEmptyCapture()];
+      return;
+    }
+    await sampleRecording(context);
+    if (recordingMode === "rebuild" && !shouldSkipAdvancedCapture(context)) {
       const initialCapture = recordedCaptures.at(-1);
       if (initialCapture && !guidedTask) await collectRecordingStartDeepEvidence(initialCapture);
       await startRebuildEventStream();
@@ -390,8 +396,8 @@ export function createPageOverlay(actions: OverlayActions) {
     if (guidedTask) startGuidedTaskObservation();
   }
 
-  async function stopRecording(options: { keepMinimal?: boolean } = {}) {
-    if (recordingPreparation) await recordingPreparation;
+  async function stopRecording(options: { keepMinimal?: boolean; persistCapture?: boolean } = {}, context?: SmartCaptureExecutionContext) {
+    if (recordingPreparation) await waitForPreparation(recordingPreparation, context);
     if (!recordingStartedAt) return lastCapture ?? getEmptyCapture();
     try {
       guidedTaskObserver?.stop();
@@ -400,17 +406,19 @@ export function createPageOverlay(actions: OverlayActions) {
       renderLoading("scan", "recorded");
       recordedTimeline = timelineRecorder?.stop();
       timelineRecorder = null;
-      const rebuildEvidence = recordingMode === "rebuild" ? await finishRebuildRecording() : undefined;
-      await sampleRecording();
+      const rebuildEvidence = recordingMode === "rebuild" ? await finishRebuildRecording(context) : undefined;
+      if (!shouldStopPageWork(context)) await sampleRecording(context);
       const mergedCapture = mergeCaptures(recordedCaptures);
       if (!mergedCapture) {
-        const response = await actions.scanPage();
+        const response = shouldStopPageWork(context)
+          ? { ok: true as const, capture: lastCapture ?? getEmptyCapture() }
+          : await actions.scanPage();
         if (!response.ok) throw new Error(response.error);
         if (rebuildEvidence) response.capture.rebuildEvidence = rebuildEvidence;
         if (rebuildEvidence && !guidedTask) addObservedOpenScene(response.capture);
-        if (rebuildEvidence && !guidedTask) await collectDeepEvidence(response.capture, "recording-stop");
+        if (rebuildEvidence && !guidedTask && !shouldSkipAdvancedCapture(context)) await collectDeepEvidence(response.capture, "recording-stop");
         lastCapture = response.capture;
-        await notifyCapture(lastCapture);
+        if (options.persistCapture !== false) await notifyCapture(lastCapture);
         renderDone();
         dismissSoon(options.keepMinimal ? 5600 : 7200);
         return response.capture;
@@ -418,9 +426,9 @@ export function createPageOverlay(actions: OverlayActions) {
       mergedCapture.interactionTimeline = mergeInteractionTimelines([mergedCapture.interactionTimeline, recordedTimeline]);
       if (rebuildEvidence) mergedCapture.rebuildEvidence = rebuildEvidence;
       if (rebuildEvidence && !guidedTask) addObservedOpenScene(mergedCapture);
-      if (rebuildEvidence && !guidedTask) await collectDeepEvidence(mergedCapture, "recording-stop");
+      if (rebuildEvidence && !guidedTask && !shouldSkipAdvancedCapture(context)) await collectDeepEvidence(mergedCapture, "recording-stop");
       lastCapture = mergedCapture;
-      await notifyCapture(lastCapture);
+      if (options.persistCapture !== false) await notifyCapture(lastCapture);
       renderDone();
       dismissSoon(options.keepMinimal ? 5600 : 7200);
       return mergedCapture;
@@ -458,7 +466,7 @@ export function createPageOverlay(actions: OverlayActions) {
     setCaptureSurfacesHidden(false);
   }
 
-  async function startRebuildRecording() {
+  async function startRebuildRecording(context?: SmartCaptureExecutionContext) {
     const recordingId = createRecordingId();
     const storageProjectId = `rebuild-${recordingId}`;
     rebuildRecording = {
@@ -472,7 +480,7 @@ export function createPageOverlay(actions: OverlayActions) {
       errors: []
     };
 
-    if (guidedTask) return;
+    if (guidedTask || shouldStopPageWork(context)) return;
     try {
       const initial = await collectSceneScreenshots({
         win: window,
@@ -481,6 +489,11 @@ export function createPageOverlay(actions: OverlayActions) {
         storageProjectId,
         phase: "recording-start",
         positions: [window.scrollY],
+        ...(context ? {
+          signal: context.signal,
+          maxSegments: 1,
+          maxDurationMs: remainingCaptureMs(context, 2_500)
+        } : {}),
         eventCount: () => rebuildRecording?.eventRecorder?.eventCount() ?? 0,
         setCaptureUiHidden: setCaptureSurfacesHidden,
         captureVisibleTab: captureAndStoreVisibleTab
@@ -502,7 +515,7 @@ export function createPageOverlay(actions: OverlayActions) {
     }
   }
 
-  async function finishRebuildRecording(): Promise<RebuildEvidence | undefined> {
+  async function finishRebuildRecording(context?: SmartCaptureExecutionContext): Promise<RebuildEvidence | undefined> {
     const recording = rebuildRecording;
     if (!recording) return undefined;
     const endedAt = new Date().toISOString();
@@ -510,8 +523,11 @@ export function createPageOverlay(actions: OverlayActions) {
     let rrwebEventCount = 0;
 
     if (recording.eventRecorder) {
-      try {
-        const snapshot = recording.eventRecorder.stop();
+      const snapshot = recording.eventRecorder.stop();
+      rrwebEventCount = snapshot.events.length;
+      if (shouldStopPageWork(context)) {
+        recording.errors.push("rrweb storage skipped after Smart Capture safety stop");
+      } else try {
         rrwebEventCount = snapshot.events.length;
         const artifact = await storeRrwebEvents({
           version: 1,
@@ -532,7 +548,7 @@ export function createPageOverlay(actions: OverlayActions) {
     }
 
     let baseline: Awaited<ReturnType<typeof collectSceneScreenshots>> | undefined;
-    if (!guidedTask) {
+    if (!guidedTask && !shouldStopPageWork(context)) {
       try {
         baseline = await collectSceneScreenshots({
           win: window,
@@ -540,6 +556,12 @@ export function createPageOverlay(actions: OverlayActions) {
           recordingId: recording.recordingId,
           storageProjectId: recording.storageProjectId,
           phase: "page-baseline",
+          ...(context ? {
+            positions: [window.scrollY],
+            maxSegments: 1,
+            signal: context.signal,
+            maxDurationMs: remainingCaptureMs(context, 2_500)
+          } : {}),
           eventCount: () => rrwebEventCount,
           setCaptureUiHidden: setCaptureSurfacesHidden,
           captureVisibleTab: captureAndStoreVisibleTab
@@ -596,7 +618,7 @@ export function createPageOverlay(actions: OverlayActions) {
       storageProjectId,
       artifactId: "rrweb-events",
       name: "recordings/rrweb-events.json",
-      content: JSON.stringify(payload),
+      payload,
       createdAt
     };
     const response = await browser.runtime.sendMessage(request) as ArtifactStorageResponse;
@@ -847,12 +869,13 @@ export function createPageOverlay(actions: OverlayActions) {
     shadow = null;
   }
 
-  async function sampleRecording() {
+  async function sampleRecording(context?: SmartCaptureExecutionContext) {
+    if (shouldStopPageWork(context)) return;
     if (recordingInFlight) return;
     recordingInFlight = true;
     try {
       const response = await actions.scanPage();
-      if (response.ok) {
+      if (response.ok && !shouldStopPageWork(context)) {
         const preview = timelineRecorder?.getPreview();
         if (preview) response.capture.interactionTimeline = preview;
         recordedCaptures.push(response.capture);
@@ -861,6 +884,26 @@ export function createPageOverlay(actions: OverlayActions) {
     } finally {
       recordingInFlight = false;
     }
+  }
+
+  async function waitForPreparation(preparation: Promise<void>, context?: SmartCaptureExecutionContext) {
+    if (!context || !context.signal.aborted) {
+      await preparation;
+      return;
+    }
+    await Promise.race([preparation.catch(() => undefined), wait(800)]);
+  }
+
+  function shouldSkipAdvancedCapture(context?: SmartCaptureExecutionContext) {
+    return Boolean(context && (context.signal.aborted || context.safetyLevel === "snapshot-only" || context.safetyLevel === "stopped"));
+  }
+
+  function shouldStopPageWork(context?: SmartCaptureExecutionContext) {
+    return Boolean(context && (context.signal.aborted || context.safetyLevel === "stopped" || performance.now() >= context.deadline));
+  }
+
+  function remainingCaptureMs(context: SmartCaptureExecutionContext, maximumMs: number) {
+    return Math.max(1, Math.min(maximumMs, context.deadline - performance.now()));
   }
 
   function renderIdle() {

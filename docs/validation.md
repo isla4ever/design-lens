@@ -38,7 +38,8 @@ The recording-level probe captured:
 - 10 implementation replay events,
 - 34 AI payload implementation entries.
 
-`npm run check:all` remains the required project gate.
+`npm run check:all` remains the required project gate. The current local run
+passes 100 tests, TypeScript compilation, and both Chrome production builds.
 
 ## Extension UI Probe
 
@@ -114,6 +115,20 @@ Use `DESIGN_LENS_STRESS_NODES=100000 npm run verify:smart-capture` for the
 snapshot-only extreme-DOM path. This path skips the stability wait and passive
 window after the bounded 1,000-node candidate index. It uses the same tiered
 interaction and long-task budgets as the recording probe.
+
+## Latest Local Release Candidate Check
+
+The latest local run was completed on 2026-07-24 with Node.js 22.23.1.
+
+- Dependency audit: `npm run audit:dependencies` passed with 0 vulnerabilities.
+- Automated tests: 100 passed, 0 failed.
+- Standard and Collector production builds: passed.
+- Browser injection, UI, performance, and Smart Capture gates: passed.
+- 100,000-node Smart Capture: 123ms start response, 55ms bounded run, 114ms
+  p95 interaction latency, all 24 heartbeat actions received, no samples after
+  user stop, and no console errors.
+
+The older v0.2.0 candidate record below is retained as historical evidence.
 
 ## v0.2.0 Release Candidate
 

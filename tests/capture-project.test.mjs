@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { captureProjectFromDesignCapture } from "../src/capture-v2/core/from-design-capture.ts";
 import { parseCaptureProject, safeParseCaptureProject } from "../src/capture-v2/core/capture-project.ts";
-import { CaptureProjectStore } from "../src/storage/capture-project-store.ts";
+import { CaptureProjectStore, MAX_ARTIFACT_BYTES } from "../src/storage/capture-project-store.ts";
 
 function captureFixture() {
   return {
@@ -152,3 +152,119 @@ test("workspace capture history is tab-aware and bounded to eight records", asyn
     await store.destroy();
   }
 });
+
+test("workspace deletion reclaims orphaned evidence but preserves shared route evidence", async () => {
+  const store = new CaptureProjectStore(`design-lens-lifecycle-${Date.now()}-${Math.random()}`);
+  const storageProjectId = "shared-route-evidence";
+  const first = captureFixture();
+  first.page.capturedAt = "2026-07-16T00:01:00.000Z";
+  first.rebuildEvidence = rebuildEvidence(storageProjectId);
+  const second = captureFixture();
+  second.page.capturedAt = "2026-07-16T00:02:00.000Z";
+  second.rebuildEvidence = rebuildEvidence(storageProjectId);
+  try {
+    await store.putArtifact({
+      projectId: storageProjectId,
+      artifactId: "baseline",
+      kind: "screenshot",
+      name: "screenshots/baseline.png",
+      mediaType: "image/png",
+      data: new Uint8Array([1, 2, 3])
+    });
+    const firstRecord = await store.putWorkspaceCapture(11, first);
+    const secondRecord = await store.putWorkspaceCapture(12, second);
+
+    await store.deleteWorkspaceCapture(firstRecord.id);
+    assert.equal((await store.listArtifacts(storageProjectId)).length, 1);
+    await store.deleteWorkspaceCapture(secondRecord.id);
+    assert.equal((await store.listArtifacts(storageProjectId)).length, 0);
+  } finally {
+    await store.destroy();
+  }
+});
+
+test("project deletion preserves artifacts still referenced by workspace captures", async () => {
+  const store = new CaptureProjectStore(`design-lens-project-sharing-${Date.now()}-${Math.random()}`);
+  const storageProjectId = "shared-project-delete";
+  const capture = captureFixture();
+  capture.page.capturedAt = "2026-07-16T00:02:30.000Z";
+  capture.rebuildEvidence = rebuildEvidence(storageProjectId);
+  try {
+    await store.putArtifact({
+      projectId: storageProjectId,
+      artifactId: "baseline",
+      kind: "screenshot",
+      name: "screenshots/baseline.png",
+      mediaType: "image/png",
+      data: new Uint8Array([1, 2, 3])
+    });
+    await store.putWorkspaceCapture(14, capture);
+    await store.putProject({
+      ...captureProjectFromDesignCapture(capture),
+      id: storageProjectId
+    });
+
+    await store.deleteProject(storageProjectId);
+    assert.equal((await store.listArtifacts(storageProjectId)).length, 1);
+  } finally {
+    await store.destroy();
+  }
+});
+
+test("workspace eviction reclaims evidence from records beyond the eight-result limit", async () => {
+  const store = new CaptureProjectStore(`design-lens-eviction-${Date.now()}-${Math.random()}`);
+  try {
+    for (let index = 0; index < 9; index += 1) {
+      const storageProjectId = `evicted-evidence-${index}`;
+      const capture = captureFixture();
+      capture.page.capturedAt = `2026-07-16T00:03:${String(index).padStart(2, "0")}.000Z`;
+      capture.rebuildEvidence = rebuildEvidence(storageProjectId);
+      await store.putArtifact({
+        projectId: storageProjectId,
+        artifactId: "baseline",
+        kind: "screenshot",
+        name: "screenshots/baseline.png",
+        mediaType: "image/png",
+        data: new Uint8Array([index])
+      });
+      await store.putWorkspaceCapture(20 + index, capture);
+    }
+
+    assert.equal((await store.listWorkspaceCaptures()).length, 8);
+    assert.equal((await store.listArtifacts("evicted-evidence-0")).length, 0);
+    assert.equal((await store.listArtifacts("evicted-evidence-8")).length, 1);
+  } finally {
+    await store.destroy();
+  }
+});
+
+test("artifact safety limit rejects oversized evidence without leaving a partial write", async () => {
+  const store = new CaptureProjectStore(`design-lens-capacity-${Date.now()}-${Math.random()}`);
+  try {
+    await assert.rejects(() => store.putArtifact({
+      projectId: "oversized",
+      artifactId: "too-large",
+      kind: "rrweb",
+      name: "recordings/too-large.json",
+      mediaType: "application/json",
+      data: new Uint8Array(MAX_ARTIFACT_BYTES + 1)
+    }), /per-file safety limit/);
+    assert.equal((await store.listArtifacts("oversized")).length, 0);
+  } finally {
+    await store.destroy();
+  }
+});
+
+function rebuildEvidence(storageProjectId) {
+  return {
+    version: 1,
+    recordingId: storageProjectId,
+    storageProjectId,
+    privacy: { maskAllInputs: true, recordCanvas: false, recordCrossOriginIframes: false },
+    request: { viewports: ["desktop"], states: ["initial"] },
+    scenes: [],
+    artifacts: [],
+    document: { width: 1440, height: 900, maxCapturedScrollY: 0, truncated: true },
+    errors: []
+  };
+}

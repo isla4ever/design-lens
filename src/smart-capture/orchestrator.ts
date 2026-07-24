@@ -3,7 +3,7 @@ import type { DesignCapture } from "../shared/schema";
 import { CaptureBudgetGuard } from "./budget-guard";
 import { buildCandidateIndex } from "./candidate-index";
 import { planSupplementalTasks } from "./coverage-planner";
-import type { SmartCaptureBudgetSummary, SmartCapturePhase, SmartCapturePreflight, SmartCaptureReport, SmartCaptureStatus } from "./types";
+import type { SmartCaptureBudgetSummary, SmartCapturePhase, SmartCapturePreflight, SmartCaptureReport, SmartCaptureSafetyLevel, SmartCaptureStatus } from "./types";
 
 const TOTAL_BUDGET_MS = 15_000;
 const STABLE_QUIET_MS = 300;
@@ -13,6 +13,7 @@ const REBUILD_PASSIVE_MS = 3_500;
 const DEGRADED_PASSIVE_MS = 1_200;
 const LARGE_DOM_NODES = 20_000;
 const EXTREME_DOM_NODES = 50_000;
+const FINALIZE_GRACE_MS = 2_500;
 
 export type SmartCaptureOptions = {
   doc: Document;
@@ -20,19 +21,44 @@ export type SmartCaptureOptions = {
   mode: CaptureMode;
   rebuild?: RebuildBrief;
   signal: AbortSignal;
-  startRecording: () => Promise<void>;
-  finishRecording: () => Promise<DesignCapture>;
+  startRecording: (context: SmartCaptureExecutionContext) => Promise<void>;
+  finishRecording: (context: SmartCaptureExecutionContext) => Promise<DesignCapture>;
   onStatus?: (status: SmartCaptureStatus) => void;
+  budgetMs?: number;
+  finalizeGraceMs?: number;
+};
+
+export type SmartCaptureExecutionContext = {
+  signal: AbortSignal;
+  deadline: number;
+  safetyLevel: SmartCaptureSafetyLevel;
+  reason?: "deadline" | "safety-stop" | "user-stop";
 };
 
 export async function runSmartCapture(options: SmartCaptureOptions): Promise<DesignCapture> {
   const { doc, win, mode, rebuild, signal, startRecording, finishRecording, onStatus } = options;
+  const totalBudgetMs = options.budgetMs ?? TOTAL_BUDGET_MS;
+  const finalizeGraceMs = options.finalizeGraceMs ?? FINALIZE_GRACE_MS;
   const startedAt = new Date();
   const startedAtMs = win.performance.now();
-  const deadline = startedAtMs + TOTAL_BUDGET_MS;
-  const guard = new CaptureBudgetGuard(doc, win);
+  const deadline = startedAtMs + totalBudgetMs;
+  const captureController = new AbortController();
+  const executionContext: SmartCaptureExecutionContext = {
+    signal: captureController.signal,
+    deadline,
+    safetyLevel: "normal"
+  };
+  const stopCapture = (reason: NonNullable<SmartCaptureExecutionContext["reason"]>) => {
+    if (captureController.signal.aborted) return;
+    executionContext.reason = reason;
+    captureController.abort(reason);
+  };
+  const guard = new CaptureBudgetGuard(doc, win, (level) => {
+    executionContext.safetyLevel = level;
+    if (level === "stopped") stopCapture("safety-stop");
+  });
   let passiveObservationMs = 0;
-  let recordingStarted = false;
+  let recordingAttempted = false;
   let capture: DesignCapture | null = null;
   let preflight: SmartCapturePreflight | null = null;
   let budget: SmartCaptureBudgetSummary | null = null;
@@ -43,45 +69,70 @@ export async function runSmartCapture(options: SmartCaptureOptions): Promise<Des
     onStatus?.({ phase, mode, startedAt: startedAt.toISOString(), degraded: guard.isDegraded() });
   };
 
+  const onExternalAbort = () => stopCapture("user-stop");
+  signal.addEventListener("abort", onExternalAbort, { once: true });
+  if (signal.aborted) onExternalAbort();
+  const deadlineTimer = win.setTimeout(() => {
+    stopCapture("deadline");
+    guard.markDegraded("deadline-exceeded", "stopped");
+  }, totalBudgetMs);
+
   guard.start();
   try {
     publish("preflight");
-    preflight = await buildCandidateIndex(doc, win, signal);
-    if (preflight.domNodes > LARGE_DOM_NODES) guard.markDegraded("large-dom");
-    if (preflight.domNodes > EXTREME_DOM_NODES) guard.markDegraded("extreme-dom-snapshot-only");
+    preflight = await buildCandidateIndex(doc, win, captureController.signal);
+    if (preflight.domNodes > LARGE_DOM_NODES) guard.markDegraded("large-dom", "reduced");
+    if (preflight.domNodes > EXTREME_DOM_NODES) guard.markDegraded("extreme-dom-snapshot-only", "snapshot-only");
     try {
-      if (!signal.aborted && win.performance.now() < deadline && preflight.domNodes <= EXTREME_DOM_NODES) {
+      if (!captureController.signal.aborted && win.performance.now() < deadline && guard.getSafetyLevel() !== "snapshot-only") {
         publish("stabilizing");
-        const stable = await waitForDomQuiet(doc, win, signal, Math.min(STABLE_MAX_WAIT_MS, deadline - win.performance.now()));
+        const stable = await waitForDomQuiet(doc, win, captureController.signal, Math.min(STABLE_MAX_WAIT_MS, deadline - win.performance.now()));
         if (!stable) guard.markDegraded("unstable-dom");
       }
 
-      if (signal.aborted) throw new Error("Smart Capture was cancelled before snapshot capture.");
       publish("snapshot");
-      await startRecording();
-      recordingStarted = true;
+      recordingAttempted = true;
+      await raceCaptureStage(startRecording(executionContext), captureController.signal, "Smart Capture snapshot timed out.");
 
-      if (!signal.aborted && win.performance.now() < deadline && preflight.domNodes <= EXTREME_DOM_NODES) {
+      if (!captureController.signal.aborted && win.performance.now() < deadline && guard.getSafetyLevel() !== "snapshot-only") {
         publish("observing");
         const passiveTarget = guard.isDegraded()
           ? DEGRADED_PASSIVE_MS
           : mode === "rebuild" ? REBUILD_PASSIVE_MS : REFERENCE_PASSIVE_MS;
-        passiveObservationMs = await waitForVisibleDuration(doc, win, signal, passiveTarget, deadline);
+        passiveObservationMs = await waitForVisibleDuration(
+          doc,
+          win,
+          captureController.signal,
+          passiveTarget,
+          deadline,
+          () => guard.getSafetyLevel() !== "snapshot-only" && guard.getSafetyLevel() !== "stopped"
+        );
       }
     } catch (error) {
-      if (!signal.aborted) guard.markDegraded(`capture-error:${error instanceof Error ? error.message : String(error)}`);
+      if (!captureController.signal.aborted) guard.markDegraded(`capture-error:${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      if (recordingStarted) {
+      if (recordingAttempted) {
         publish("finalizing");
-        capture = await finishRecording();
+        if (win.performance.now() >= deadline && !captureController.signal.aborted) {
+          stopCapture("deadline");
+          guard.markDegraded("deadline-exceeded", "stopped");
+        }
+        capture = await withTimeout(
+          finishRecording(executionContext),
+          win,
+          finalizeGraceMs,
+          "Smart Capture cleanup did not finish within the safety window."
+        );
       }
     }
   } finally {
     budget = guard.stop();
+    win.clearTimeout(deadlineTimer);
+    signal.removeEventListener("abort", onExternalAbort);
   }
 
   if (!capture || !preflight || !budget) throw new Error("Smart Capture could not create a page snapshot.");
-  const outcome: SmartCaptureReport["outcome"] = signal.aborted ? "cancelled" : budget.degraded ? "degraded" : "complete";
+  const outcome: SmartCaptureReport["outcome"] = executionContext.reason === "user-stop" ? "cancelled" : budget.degraded ? "degraded" : "complete";
   capture.smartCapture = {
     version: 1,
     mode,
@@ -96,6 +147,36 @@ export async function runSmartCapture(options: SmartCaptureOptions): Promise<Des
   };
   publish(outcome === "cancelled" ? "cancelled" : outcome === "degraded" ? "degraded" : "complete");
   return capture;
+}
+
+function raceCaptureStage<T>(promise: Promise<T>, signal: AbortSignal, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      callback();
+    };
+    const onAbort = () => finish(() => reject(new DOMException(message, "AbortError")));
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then((value) => finish(() => resolve(value)), (error) => finish(() => reject(error)));
+    if (signal.aborted) onAbort();
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, win: Window, durationMs: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      win.clearTimeout(timer);
+      callback();
+    };
+    const timer = win.setTimeout(() => finish(() => reject(new DOMException(message, "TimeoutError"))), durationMs);
+    promise.then((value) => finish(() => resolve(value)), (error) => finish(() => reject(error)));
+  });
 }
 
 export function waitForDomQuiet(doc: Document, win: Window, signal: AbortSignal, maxWaitMs = STABLE_MAX_WAIT_MS) {
@@ -126,10 +207,10 @@ export function waitForDomQuiet(doc: Document, win: Window, signal: AbortSignal,
   });
 }
 
-async function waitForVisibleDuration(doc: Document, win: Window, signal: AbortSignal, targetMs: number, deadline: number) {
+async function waitForVisibleDuration(doc: Document, win: Window, signal: AbortSignal, targetMs: number, deadline: number, shouldContinue: () => boolean) {
   let visibleMs = 0;
   let previous = win.performance.now();
-  while (!signal.aborted && visibleMs < targetMs && win.performance.now() < deadline) {
+  while (!signal.aborted && shouldContinue() && visibleMs < targetMs && win.performance.now() < deadline) {
     await delay(win, Math.min(100, targetMs - visibleMs, Math.max(1, deadline - win.performance.now())), signal);
     const now = win.performance.now();
     if (!doc.hidden) visibleMs += now - previous;

@@ -1,6 +1,7 @@
 import React from "react";
 import { Archive, Crosshair, MousePointerClick, RefreshCw, ScanSearch, Settings2, Square } from "lucide-react";
-import { formatSmartCaptureOutcome, formatSmartCaptureTask } from "../../src/smart-capture/presentation";
+import { formatSmartCaptureTask } from "../../src/smart-capture/presentation";
+import { formatCaptureReadiness, getCaptureReadiness } from "../../src/smart-capture/readiness";
 import type { CaptureMode } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
 import type { DesignCapture } from "../../src/shared/schema";
@@ -41,6 +42,8 @@ export function WorkspaceOverview({ capture, captureMode, tasks, recorderGapCoun
 
   const isRebuild = capture.smartCapture?.mode === "rebuild" || Boolean(capture.rebuildEvidence);
   const nextTaskNeedsTarget = tasks[0]?.source === "recorder-flow" && tasks[0].kind === "capture-component";
+  const readiness = getCaptureReadiness(capture, tasks);
+  const readinessCopy = formatCaptureReadiness(readiness, locale);
   return (
     <div className="overview-layout">
       <section className="result-summary" aria-labelledby="workspace-result-title">
@@ -49,8 +52,9 @@ export function WorkspaceOverview({ capture, captureMode, tasks, recorderGapCoun
             <span>{isRebuild ? (zh ? "重建草稿" : "Rebuild draft") : (zh ? "设计参照" : "Design reference")}</span>
             <h2 id="workspace-result-title">{capture.page.title}</h2>
           </div>
-          {capture.smartCapture ? <strong className={`outcome ${capture.smartCapture.outcome}`}>{formatSmartCaptureOutcome(capture.smartCapture.outcome, locale)}</strong> : null}
+          <strong className={`readiness-badge ${readiness}`} title={readinessCopy.description}>{readinessCopy.title}</strong>
         </div>
+        <p className={`readiness-summary ${readiness}`}>{readinessCopy.description}</p>
         <div className="workspace-metrics" aria-label={zh ? "捕获指标" : "Capture metrics"}>
           <Metric value={capture.components.length} label={zh ? "组件" : "Components"} />
           <Metric value={capture.motion.length} label={zh ? "动效" : "Motion"} />

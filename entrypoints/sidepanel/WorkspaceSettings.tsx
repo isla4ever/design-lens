@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Save } from "lucide-react";
-import type { AiProviderProfile, AiSettingsState } from "../../src/shared/ai-settings";
+import { ChevronDown, Save, Settings2 } from "lucide-react";
+import { getActiveAiProfile, type AiProviderProfile, type AiSettingsState } from "../../src/shared/ai-settings";
 import type { DesignBrief } from "../../src/shared/design-brief";
 import type { Locale } from "../../src/shared/i18n";
 import { AiSettingsMenu } from "../popup/AiSettingsMenu";
@@ -17,6 +17,7 @@ export function WorkspaceSettings({ locale, brief, aiSettings, onSaveBrief, onSa
 }) {
   const [draft, setDraft] = useState(brief);
   const zh = locale === "zh";
+  const hasAiKey = Boolean(getActiveAiProfile(aiSettings).apiKey.trim());
   useEffect(() => setDraft(brief), [brief]);
   return (
     <div className="settings-layout">
@@ -26,7 +27,12 @@ export function WorkspaceSettings({ locale, brief, aiSettings, onSaveBrief, onSa
         <IntentBriefPanel locale={locale} brief={draft} onChange={setDraft} />
         <button className="workspace-primary save-brief" type="button" onClick={() => onSaveBrief(draft)}><Save aria-hidden="true" />{zh ? "保存要求" : "Save brief"}</button>
       </section>
-      {draft.mode === "reference" ? <section className="workspace-section" aria-labelledby="ai-settings-title"><h2 className="sr-only" id="ai-settings-title">{zh ? "AI 配置" : "AI settings"}</h2><AiSettingsMenu locale={locale} state={aiSettings} onSave={onSaveAi} onClear={onClearAi} /></section> : null}
+      {draft.mode === "reference" ? (
+        <details className="workspace-disclosure workspace-section ai-settings-disclosure" open={!hasAiKey}>
+          <summary><Settings2 aria-hidden="true" /><span>{zh ? "AI 配置" : "AI settings"}</span><ChevronDown className="disclosure-chevron" aria-hidden="true" /></summary>
+          <div className="ai-settings-body"><AiSettingsMenu locale={locale} state={aiSettings} onSave={onSaveAi} onClear={onClearAi} /></div>
+        </details>
+      ) : null}
     </div>
   );
 }

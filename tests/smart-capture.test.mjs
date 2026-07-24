@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planSupplementalTasks } from "../src/smart-capture/coverage-planner.ts";
 import { getRecorderGapBreakdown, mergeSupplementalTasks, planRecorderSupplementalTasks } from "../src/smart-capture/recorder-gap-planner.ts";
+import { runSmartCapture } from "../src/smart-capture/orchestrator.ts";
 
 function captureFixture() {
   return {
@@ -192,3 +193,74 @@ test("specific Recorder tasks subsume equivalent generic Smart Capture tasks", (
   assert.equal(tasks.length, 1);
   assert.equal(tasks[0].id, "recorder-hover");
 });
+
+test("Smart Capture deadline aborts a hung snapshot and still runs bounded cleanup", async () => {
+  const restore = installCaptureObserverStubs();
+  const controller = new AbortController();
+  let cleanupContext;
+  const startedAt = Date.now();
+  try {
+    const capture = await runSmartCapture({
+      doc: { documentElement: null, body: null, hidden: false },
+      win: testWindow(),
+      mode: "reference",
+      signal: controller.signal,
+      budgetMs: 25,
+      finalizeGraceMs: 100,
+      startRecording: () => new Promise(() => {}),
+      finishRecording: async (context) => {
+        cleanupContext = { aborted: context.signal.aborted, reason: context.reason, safetyLevel: context.safetyLevel };
+        return captureFixture();
+      }
+    });
+
+    assert.equal(capture.smartCapture.outcome, "degraded");
+    assert.equal(capture.smartCapture.budget.safetyLevel, "stopped");
+    assert.equal(capture.smartCapture.budget.reasons.includes("deadline-exceeded"), true);
+    assert.deepEqual(cleanupContext, { aborted: true, reason: "deadline", safetyLevel: "stopped" });
+    assert.equal(Date.now() - startedAt < 500, true);
+  } finally {
+    restore();
+  }
+});
+
+test("Smart Capture rejects a cleanup function that exceeds its final safety window", async () => {
+  const restore = installCaptureObserverStubs();
+  try {
+    await assert.rejects(() => runSmartCapture({
+      doc: { documentElement: null, body: null, hidden: false },
+      win: testWindow(),
+      mode: "reference",
+      signal: new AbortController().signal,
+      budgetMs: 20,
+      finalizeGraceMs: 25,
+      startRecording: async () => {},
+      finishRecording: () => new Promise(() => {})
+    }), /cleanup did not finish/);
+  } finally {
+    restore();
+  }
+});
+
+function installCaptureObserverStubs() {
+  const previousMutationObserver = globalThis.MutationObserver;
+  const previousPerformanceObserver = globalThis.PerformanceObserver;
+  globalThis.MutationObserver = class {
+    observe() {}
+    disconnect() {}
+  };
+  globalThis.PerformanceObserver = undefined;
+  return () => {
+    globalThis.MutationObserver = previousMutationObserver;
+    globalThis.PerformanceObserver = previousPerformanceObserver;
+  };
+}
+
+function testWindow() {
+  return {
+    performance: { now: () => performance.now() },
+    innerHeight: 900,
+    setTimeout: (callback, delay) => setTimeout(callback, delay),
+    clearTimeout: (timer) => clearTimeout(timer)
+  };
+}
